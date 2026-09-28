@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class TelaCalendario extends StatefulWidget {
   const TelaCalendario({super.key});
@@ -58,15 +58,13 @@ class _TelaCalendarioState extends State<TelaCalendario> {
   }
 
   void adicionarPessoa() {
-    final TextEditingController nomeController =
-        TextEditingController();
+    final TextEditingController nomeController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text("Adicionar pessoa"),
-
           content: TextField(
             controller: nomeController,
             autofocus: true,
@@ -76,7 +74,6 @@ class _TelaCalendarioState extends State<TelaCalendario> {
               border: OutlineInputBorder(),
             ),
           ),
-
           actions: [
             TextButton(
               onPressed: () {
@@ -84,7 +81,6 @@ class _TelaCalendarioState extends State<TelaCalendario> {
               },
               child: const Text("Cancelar"),
             ),
-
             ElevatedButton(
               onPressed: () {
                 String nome = nomeController.text.trim();
@@ -107,216 +103,118 @@ class _TelaCalendarioState extends State<TelaCalendario> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
+    return Container(
+      color: Colors.white,
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
 
-      body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 25),
+          // Pessoas
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                const SizedBox(width: 12),
 
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  const SizedBox(width: 12),
-
-                  OutlinedButton.icon(
-                    onPressed: adicionarPessoa,
-                    icon: const Icon(
-                      Icons.person_add_alt_1,
-                      size: 18,
+                OutlinedButton.icon(
+                  onPressed: adicionarPessoa,
+                  icon: const Icon(
+                    Icons.person_add_alt_1,
+                    size: 18,
+                  ),
+                  label: const Text("Adicionar pessoa"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF071369),
+                    side: const BorderSide(
+                      color: Color(0xFF071369),
                     ),
-                    label: const Text(
-                      "Adicionar pessoa",
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          const Color(0xFF071369),
-                      side: const BorderSide(
-                        color: Color(0xFF071369),
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(7),
-                      ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(7),
                     ),
                   ),
+                ),
 
-                  const SizedBox(width: 6),
+                const SizedBox(width: 6),
 
-                  ...pessoas.map(
-                    (nome) => participante(
-                      nome,
-                      const Color(0xFF858CD8),
-                    ),
+                ...pessoas.map(
+                  (nome) => participante(
+                    nome,
+                    const Color(0xFF858CD8),
                   ),
+                ),
 
-                  const SizedBox(width: 12),
-                ],
-              ),
+                const SizedBox(width: 12),
+              ],
             ),
+          ),
 
-            Expanded(
-              child: Center(
-                child: Container(
-                  width: 320,
-                  padding: const EdgeInsets.all(18),
+          const SizedBox(height: 8),
 
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(
-                      color: const Color(0xFFE0E0E0),
+          // Mês e botões
+          Row(
+            children: [
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    mesAtual = DateTime(
+                      mesAtual.year,
+                      mesAtual.month - 1,
+                    );
+                  });
+                },
+                icon: const Icon(Icons.chevron_left),
+              ),
+
+              Expanded(
+                child: Center(
+                  child: Text(
+                    "${nomeMes(mesAtual.month)} ${mesAtual.year}",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
-                    borderRadius:
-                        BorderRadius.circular(12),
-                  ),
-
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                mesAtual = DateTime(
-                                  mesAtual.year,
-                                  mesAtual.month - 1,
-                                );
-                              });
-                            },
-                            icon: const Icon(
-                              Icons.chevron_left,
-                              size: 20,
-                            ),
-                          ),
-
-                          Expanded(
-                            child: Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.center,
-                              children: [
-                                caixaSelecao(
-                                  nomeMes(
-                                    mesAtual.month,
-                                  ),
-                                ),
-
-                                const SizedBox(width: 8),
-
-                                caixaSelecao(
-                                  mesAtual.year.toString(),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                mesAtual = DateTime(
-                                  mesAtual.year,
-                                  mesAtual.month + 1,
-                                );
-                              });
-                            },
-                            icon: const Icon(
-                              Icons.chevron_right,
-                              size: 20,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      const Row(
-                        children: [
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Dom",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Seg",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Ter",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Qua",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Qui",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Sex",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Sáb",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      construirCalendario(),
-                    ],
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),);
+
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    mesAtual = DateTime(
+                      mesAtual.year,
+                      mesAtual.month + 1,
+                    );
+                  });
+                },
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 5),
+
+          // Dias da semana
+          const Row(
+            children: [
+              Expanded(child: Center(child: Text("DOM"))),
+              Expanded(child: Center(child: Text("SEG"))),
+              Expanded(child: Center(child: Text("TER"))),
+              Expanded(child: Center(child: Text("QUA"))),
+              Expanded(child: Center(child: Text("QUI"))),
+              Expanded(child: Center(child: Text("SEX"))),
+              Expanded(child: Center(child: Text("SÁB"))),
+            ],
+          ),
+
+          const SizedBox(height: 5),
+
+          // Calendário
+          Expanded(
+            child: construirCalendario(),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget construirCalendario() {
@@ -336,78 +234,119 @@ class _TelaCalendarioState extends State<TelaCalendario> {
         ).weekday %
         7;
 
-    List<Widget> dias = [];
+    int totalCelulas = primeiroDiaSemana + quantidadeDias;
 
-    for (
-      int i = 0;
-      i < primeiroDiaSemana;
-      i++
-    ) {
-      dias.add(
-        const SizedBox(
-          width: 32,
-          height: 32,
-        ),
-      );
-    }
+    int quantidadeSemanas = (totalCelulas / 7).ceil();
 
-    for (
-      int dia = 1;
-      dia <= quantidadeDias;
-      dia++
-    ) {
-      DateTime data = DateTime(
-        ano,
-        mes,
-        dia,
-      );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        double larguraCelula = constraints.maxWidth / 7;
 
-      dias.add(
-        construirDia(data),
-      );
-    }
+        double alturaCelula =
+            constraints.maxHeight / quantidadeSemanas;
 
-    return GridView.count(
-      crossAxisCount: 7,
-      shrinkWrap: true,
-      physics:
-          const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 3,
-      crossAxisSpacing: 3,
-      children: dias,
+        double proporcao = larguraCelula / alturaCelula;
+
+        return GridView.builder(
+          padding: EdgeInsets.zero,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            childAspectRatio: proporcao,
+          ),
+          itemCount: quantidadeSemanas * 7,
+          itemBuilder: (context, index) {
+            int numeroDia =
+                index - primeiroDiaSemana + 1;
+
+            if (numeroDia < 1 ||
+                numeroDia > quantidadeDias) {
+              return construirCelulaVazia();
+            }
+
+            DateTime data = DateTime(
+              ano,
+              mes,
+              numeroDia,
+            );
+
+            return construirDia(
+              data,
+              numeroDia,
+            );
+          },
+        );
+      },
     );
   }
 
-  Widget construirDia(DateTime data) {
-    bool selecionado =
-        diaEstaSelecionado(data);
+  Widget construirDia(
+    DateTime data,
+    int numeroDia,
+  ) {
+    bool selecionado = diaEstaSelecionado(data);
 
     return GestureDetector(
       onTap: () {
         selecionarDia(data);
       },
-
       child: Container(
-        alignment: Alignment.center,
-
         decoration: BoxDecoration(
           color: selecionado
-              ? const Color(0xFF071369)
-              : Colors.transparent,
-
-          borderRadius:
-              BorderRadius.circular(6),
-        ),
-
-        child: Text(
-          data.day.toString(),
-
-          style: TextStyle(
-            color: selecionado
-                ? Colors.white
-                : Colors.black,
-            fontSize: 12,
+              ? const Color(0xFFE4E1FF)
+              : Colors.white,
+          border: Border.all(
+            color: const Color(0xFFEEEEEE),
+            width: 0.5,
           ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(7),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selecionado
+                      ? const Color(0xFF071369)
+                      : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  "$numeroDia",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: selecionado
+                        ? Colors.white
+                        : const Color(0xFF555555),
+                    fontWeight: selecionado
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+              ),
+
+              // Espaço reservado para eventos futuros
+              const Expanded(
+                child: SizedBox(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget construirCelulaVazia() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAFAFA),
+        border: Border.all(
+          color: const Color(0xFFEEEEEE),
+          width: 0.5,
         ),
       ),
     );
@@ -418,63 +357,21 @@ class _TelaCalendarioState extends State<TelaCalendario> {
     Color cor,
   ) {
     return Container(
-      margin: const EdgeInsets.only(
-        right: 5,
-      ),
-
+      margin: const EdgeInsets.only(right: 6),
       padding: const EdgeInsets.symmetric(
-        horizontal: 13,
-        vertical: 7,
+        horizontal: 12,
+        vertical: 8,
       ),
-
       decoration: BoxDecoration(
         color: cor,
-        borderRadius:
-            BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(7),
       ),
-
       child: Text(
         nome,
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
+          fontSize: 12,
         ),
-      ),
-    );
-  }
-
-  Widget caixaSelecao(String texto) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 5,
-      ),
-
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: const Color(0xFFD6D6D6),
-        ),
-        borderRadius:
-            BorderRadius.circular(5),
-      ),
-
-      child: Row(
-        children: [
-          Text(
-            texto,
-            style: const TextStyle(
-              fontSize: 11,
-            ),
-          ),
-
-          const SizedBox(width: 5),
-
-          const Icon(
-            Icons.keyboard_arrow_down,
-            size: 14,
-          ),
-        ],
       ),
     );
   }
