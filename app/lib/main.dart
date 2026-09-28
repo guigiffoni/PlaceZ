@@ -1,9 +1,11 @@
-import 'package:app/calendario.dart';
 import 'package:flutter/material.dart';
 
+import 'calendario.dart';
 import 'pesquisa.dart';
-// import 'calendario.dart';
 import 'cadastro.dart';
+import 'chat.dart';
+import 'evento.dart';
+import 'sobre.dart';
 
 void main() {
   runApp(const MainApp());
@@ -15,93 +17,110 @@ class MainApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: "PlaceZ",
+      debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.system,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange)
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.deepOrange,
+        ),
       ),
-      home: BottomNavigationBar(),
+      home: const BarraNavegacao(),
     );
   }
 }
 
-class BottomNavigationBar extends StatefulWidget {
-  const BottomNavigationBar({super.key});
+class BarraNavegacao extends StatefulWidget {
+  const BarraNavegacao({super.key});
 
   @override
-  State<BottomNavigationBar> createState() => _BottomNavigationBarState();
+  State<BarraNavegacao> createState() =>
+      _BarraNavegacaoState();
 }
 
-class _BottomNavigationBarState extends State<BottomNavigationBar> {
+class _BarraNavegacaoState
+    extends State<BarraNavegacao> {
   int _currentPageIndex = 0;
 
   final List<Widget> _widgetOptions = [
-    TelaCalendario(),
-    Text("WIP Chat"),
-    Text("Adicionar evento"),
-    Pesquisa(),
-    Cadastrador(),
+    const TelaCalendario(),
+    const TelaChat(),
+    const TelaEvento(),
+    const Pesquisa(),
+    const Cadastrador(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("PlaceZ"),
+        title: const Text("PlaceZ"),
         backgroundColor: Colors.red.shade300,
+
         actions: [
           IconButton(
-            onPressed: () => showAboutDialog(
-              context: context,
-              applicationName: "PlaceZ (Plêi Cês)",
-              applicationLegalese: "MIT License",
-              children: const [
-                SizedBox(height: 16,),
-                Text(
-                  "Criado no segundo semestre de 2026 para a disciplina de " + 
-                  "desenvolvimento móvel, com o intuito de facilitar o " + 
-                  "encontro entre amigos."
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      const TelaSobre(),
                 ),
-                SizedBox(height: 16),
-                Text("Desenvolvido por:"),
-                Text("Guilherme Amaral Giffoni"),
-                Text("Pedro Henrique"),
-                Text("Rodrigo Fernandes"),
-              ]
-            ), 
-            icon: Icon(Icons.info)
-          )
+              );
+            },
+            icon: const Icon(
+              Icons.info_outline,
+            ),
+          ),
         ],
       ),
-      body: Expanded(
-        child: _widgetOptions.elementAt(_currentPageIndex)
+
+      body: _widgetOptions.elementAt(
+        _currentPageIndex,
       ),
+
       bottomNavigationBar: NavigationBar(
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+        labelBehavior:
+            NavigationDestinationLabelBehavior
+                .alwaysHide,
+
         selectedIndex: _currentPageIndex,
+
         onDestinationSelected: (int value) {
           setState(() {
             _currentPageIndex = value;
           });
         },
-        destinations: <Widget>[
+
+        destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.calendar_month),
+            icon: Icon(
+              Icons.calendar_month,
+            ),
             label: "Calendário",
           ),
+
           NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
+            icon: Icon(
+              Icons.chat_bubble_outline,
+            ),
             label: "Chat",
           ),
+
           NavigationDestination(
-            icon: Icon(Icons.add,),
+            icon: Icon(Icons.add),
             label: "Adicionar evento",
           ),
+
           NavigationDestination(
             icon: Icon(Icons.search),
             label: "Pesquisar lugares",
           ),
+
           NavigationDestination(
-            icon: Icon(Icons.circle_outlined),
+            icon: Icon(
+              Icons.circle_outlined,
+            ),
             label: "Perfil",
           ),
         ],
