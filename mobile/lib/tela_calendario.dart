@@ -65,8 +65,9 @@ class _TelaCalendarioState extends State<TelaCalendario> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Adicionar pessoa"),
-
+          title: const Text(
+            "Adicionar pessoa",
+          ),
           content: TextField(
             controller: nomeController,
             autofocus: true,
@@ -76,18 +77,19 @@ class _TelaCalendarioState extends State<TelaCalendario> {
               border: OutlineInputBorder(),
             ),
           ),
-
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
               },
-              child: const Text("Cancelar"),
+              child: const Text(
+                "Cancelar",
+              ),
             ),
-
             ElevatedButton(
               onPressed: () {
-                String nome = nomeController.text.trim();
+                String nome =
+                    nomeController.text.trim();
 
                 if (nome.isNotEmpty) {
                   setState(() {
@@ -97,7 +99,9 @@ class _TelaCalendarioState extends State<TelaCalendario> {
                   Navigator.pop(context);
                 }
               },
-              child: const Text("Adicionar"),
+              child: const Text(
+                "Adicionar",
+              ),
             ),
           ],
         );
@@ -113,8 +117,9 @@ class _TelaCalendarioState extends State<TelaCalendario> {
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 25),
+            const SizedBox(height: 12),
 
+            // PARTICIPANTES
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -157,185 +162,204 @@ class _TelaCalendarioState extends State<TelaCalendario> {
               ),
             ),
 
-            Expanded(
-              child: Center(
-                child: Container(
-                  width: 320,
-                  padding: const EdgeInsets.all(18),
+            const SizedBox(height: 10),
 
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(
-                      color: const Color(0xFFE0E0E0),
+            // CABEÇALHO DO CALENDÁRIO
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        mesAtual = DateTime(
+                          mesAtual.year,
+                          mesAtual.month - 1,
+                        );
+                      });
+                    },
+                    icon: const Icon(
+                      Icons.chevron_left,
+                      size: 26,
                     ),
-                    borderRadius:
-                        BorderRadius.circular(12),
                   ),
 
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                mesAtual = DateTime(
-                                  mesAtual.year,
-                                  mesAtual.month - 1,
-                                );
-                              });
-                            },
-                            icon: const Icon(
-                              Icons.chevron_left,
-                              size: 20,
-                            ),
-                          ),
-
-                          Expanded(
-                            child: Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.center,
-                              children: [
-                                caixaSelecao(
-                                  nomeMes(
-                                    mesAtual.month,
-                                  ),
-                                ),
-
-                                const SizedBox(width: 8),
-
-                                caixaSelecao(
-                                  mesAtual.year.toString(),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                mesAtual = DateTime(
-                                  mesAtual.year,
-                                  mesAtual.month + 1,
-                                );
-                              });
-                            },
-                            icon: const Icon(
-                              Icons.chevron_right,
-                              size: 20,
-                            ),
-                          ),
-                        ],
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        "${nomeMes(mesAtual.month)} ${mesAtual.year}",
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight:
+                              FontWeight.w600,
+                        ),
                       ),
-
-                      const SizedBox(height: 8),
-
-                      const Row(
-                        children: [
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Dom",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Seg",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Ter",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Qua",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Qui",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Sex",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                "Sáb",
-                                style: TextStyle(
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      construirCalendario(),
-                    ],
+                    ),
                   ),
+
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        mesAtual = DateTime(
+                          mesAtual.year,
+                          mesAtual.month + 1,
+                        );
+                      });
+                    },
+                    icon: const Icon(
+                      Icons.chevron_right,
+                      size: 26,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 5),
+
+            // DIAS DA SEMANA
+            const Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: 4,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        "DOM",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight:
+                              FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        "SEG",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight:
+                              FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        "TER",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight:
+                              FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        "QUA",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight:
+                              FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        "QUI",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight:
+                              FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        "SEX",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight:
+                              FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        "SÁB",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight:
+                              FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 5),
+
+            const Divider(
+              height: 1,
+              color: Color(0xFFE5E5E5),
+            ),
+
+            // CALENDÁRIO
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4,
                 ),
+                child: construirCalendario(),
               ),
             ),
           ],
         ),
       ),
 
+      // BARRA DE NAVEGAÇÃO INFERIOR
       bottomNavigationBar: Container(
         color: const Color(0xFFFCF4FF),
-
         child: SafeArea(
           top: false,
           child: SizedBox(
             height: 70,
-
             child: Row(
               mainAxisAlignment:
                   MainAxisAlignment.spaceEvenly,
               children: [
+                // CALENDÁRIO
                 const Icon(
                   Icons.calendar_today,
                   color: Color(0xFFEC7B8C),
                   size: 22,
                 ),
 
+                // CHAT
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -353,14 +377,13 @@ class _TelaCalendarioState extends State<TelaCalendario> {
                       child: Container(
                         width: 14,
                         height: 14,
-                        alignment: Alignment.center,
-
+                        alignment:
+                            Alignment.center,
                         decoration:
                             const BoxDecoration(
                           color: Colors.red,
                           shape: BoxShape.circle,
                         ),
-
                         child: const Text(
                           "7",
                           style: TextStyle(
@@ -373,6 +396,7 @@ class _TelaCalendarioState extends State<TelaCalendario> {
                   ],
                 ),
 
+                // BUSCA
                 IconButton(
                   onPressed: () {},
                   icon: const Icon(
@@ -382,6 +406,7 @@ class _TelaCalendarioState extends State<TelaCalendario> {
                   ),
                 ),
 
+                // PERFIL
                 const CircleAvatar(
                   radius: 17,
                   backgroundColor:
@@ -393,16 +418,16 @@ class _TelaCalendarioState extends State<TelaCalendario> {
                   ),
                 ),
 
+                // ADICIONAR EVENTO
                 Container(
                   width: 46,
                   height: 46,
-
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFF2424),
+                    color:
+                        const Color(0xFFFF2424),
                     borderRadius:
                         BorderRadius.circular(12),
                   ),
-
                   child: const Icon(
                     Icons.add,
                     color: Colors.white,
@@ -421,12 +446,15 @@ class _TelaCalendarioState extends State<TelaCalendario> {
     int ano = mesAtual.year;
     int mes = mesAtual.month;
 
+    // DESCOBRE QUANTOS DIAS O MÊS POSSUI
     int quantidadeDias = DateTime(
       ano,
       mes + 1,
       0,
     ).day;
 
+    // DESCOBRE EM QUAL DIA DA SEMANA
+    // O PRIMEIRO DIA DO MÊS COMEÇA
     int primeiroDiaSemana = DateTime(
           ano,
           mes,
@@ -434,49 +462,86 @@ class _TelaCalendarioState extends State<TelaCalendario> {
         ).weekday %
         7;
 
-    List<Widget> dias = [];
+    int quantidadeCelulas =
+        primeiroDiaSemana +
+        quantidadeDias;
 
-    for (
-      int i = 0;
-      i < primeiroDiaSemana;
-      i++
-    ) {
-      dias.add(
-        const SizedBox(
-          width: 32,
-          height: 32,
-        ),
-      );
-    }
+    // DESCOBRE QUANTAS SEMANAS
+    // PRECISAMOS MOSTRAR
+    int quantidadeSemanas =
+        (quantidadeCelulas / 7).ceil();
 
-    for (
-      int dia = 1;
-      dia <= quantidadeDias;
-      dia++
-    ) {
-      DateTime data = DateTime(
-        ano,
-        mes,
-        dia,
-      );
+    return LayoutBuilder(
+      builder: (
+        context,
+        constraints,
+      ) {
+        // ALTURA DISPONÍVEL DIVIDIDA
+        // PELA QUANTIDADE DE SEMANAS
+        double alturaCelula =
+            constraints.maxHeight /
+            quantidadeSemanas;
 
-      dias.add(
-        construirDia(data),
-      );
-    }
+        // LARGURA DIVIDIDA PELOS
+        // SETE DIAS DA SEMANA
+        double larguraCelula =
+            constraints.maxWidth / 7;
 
-    return GridView.count(
-      crossAxisCount: 7,
-      shrinkWrap: true,
-      physics:
-          const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 3,
-      crossAxisSpacing: 3,
-      children: dias,
+        double proporcao =
+            larguraCelula /
+            alturaCelula;
+
+        return GridView.builder(
+          physics:
+              const NeverScrollableScrollPhysics(),
+
+          padding: EdgeInsets.zero,
+
+          gridDelegate:
+              SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            childAspectRatio:
+                proporcao,
+          ),
+
+          itemCount:
+              quantidadeSemanas * 7,
+
+          itemBuilder: (
+            context,
+            index,
+          ) {
+            int numeroDia =
+                index -
+                primeiroDiaSemana +
+                1;
+
+            // ESPAÇOS VAZIOS ANTES OU
+            // DEPOIS DOS DIAS DO MÊS
+            if (numeroDia < 1 ||
+                numeroDia >
+                    quantidadeDias) {
+              return construirCelulaVazia();
+            }
+
+            DateTime data = DateTime(
+              ano,
+              mes,
+              numeroDia,
+            );
+
+            return construirDia(
+              data,
+            );
+          },
+        );
+      },
     );
   }
 
-  Widget construirDia(DateTime data) {
+  Widget construirDia(
+    DateTime data,
+  ) {
     bool selecionado =
         diaEstaSelecionado(data);
 
@@ -486,26 +551,90 @@ class _TelaCalendarioState extends State<TelaCalendario> {
       },
 
       child: Container(
-        alignment: Alignment.center,
-
         decoration: BoxDecoration(
           color: selecionado
-              ? const Color(0xFF071369)
-              : Colors.transparent,
+              ? const Color(0xFFE8E9FF)
+              : Colors.white,
 
-          borderRadius:
-              BorderRadius.circular(6),
+          border: Border.all(
+            color:
+                const Color(0xFFEEEEEE),
+            width: 0.5,
+          ),
         ),
 
-        child: Text(
-          data.day.toString(),
+        child: Padding(
+          padding:
+              const EdgeInsets.all(5),
 
-          style: TextStyle(
-            color: selecionado
-                ? Colors.white
-                : Colors.black,
-            fontSize: 12,
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              // NÚMERO DO DIA
+              Container(
+                width: 27,
+                height: 27,
+                alignment:
+                    Alignment.center,
+
+                decoration: BoxDecoration(
+                  color: selecionado
+                      ? const Color(
+                          0xFF071369,
+                        )
+                      : Colors.transparent,
+
+                  shape:
+                      BoxShape.circle,
+                ),
+
+                child: Text(
+                  data.day.toString(),
+
+                  style: TextStyle(
+                    color: selecionado
+                        ? Colors.white
+                        : const Color(
+                            0xFF333333,
+                          ),
+
+                    fontSize: 12,
+
+                    fontWeight:
+                        selecionado
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                  ),
+                ),
+              ),
+
+              const SizedBox(
+                height: 3,
+              ),
+
+              // ESPAÇO RESERVADO PARA
+              // MOSTRAR EVENTOS FUTURAMENTE
+              Expanded(
+                child: Container(),
+              ),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget construirCelulaVazia() {
+    return Container(
+      decoration: BoxDecoration(
+        color:
+            const Color(0xFFFAFAFA),
+
+        border: Border.all(
+          color:
+              const Color(0xFFEEEEEE),
+          width: 0.5,
         ),
       ),
     );
@@ -516,11 +645,13 @@ class _TelaCalendarioState extends State<TelaCalendario> {
     Color cor,
   ) {
     return Container(
-      margin: const EdgeInsets.only(
+      margin:
+          const EdgeInsets.only(
         right: 5,
       ),
 
-      padding: const EdgeInsets.symmetric(
+      padding:
+          const EdgeInsets.symmetric(
         horizontal: 13,
         vertical: 7,
       ),
@@ -536,43 +667,9 @@ class _TelaCalendarioState extends State<TelaCalendario> {
         style: const TextStyle(
           color: Colors.white,
           fontSize: 11,
-          fontWeight: FontWeight.w500,
+          fontWeight:
+              FontWeight.w500,
         ),
-      ),
-    );
-  }
-
-  Widget caixaSelecao(String texto) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 5,
-      ),
-
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: const Color(0xFFD6D6D6),
-        ),
-        borderRadius:
-            BorderRadius.circular(5),
-      ),
-
-      child: Row(
-        children: [
-          Text(
-            texto,
-            style: const TextStyle(
-              fontSize: 11,
-            ),
-          ),
-
-          const SizedBox(width: 5),
-
-          const Icon(
-            Icons.keyboard_arrow_down,
-            size: 14,
-          ),
-        ],
       ),
     );
   }
