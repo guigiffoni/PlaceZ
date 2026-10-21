@@ -22,7 +22,7 @@ class MainApp extends StatelessWidget {
       themeMode: ThemeMode.system,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepOrange,
+          seedColor: Colors.red.shade500,
         ),
       ),
       home: const BarraNavegacao(),
@@ -55,8 +55,7 @@ class _BarraNavegacaoState
     return Scaffold(
       appBar: AppBar(
         title: const Text("PlaceZ"),
-        backgroundColor: Colors.red.shade300,
-
+        backgroundColor: Colors.red.shade500,
         actions: [
           IconButton(
             onPressed: () {
@@ -128,3 +127,8 @@ class _BarraNavegacaoState
     );
   }
 }
+
+// adicionar o github das pessoas que participaram do projeto
+// ajustar a logo na tela de cadastro e sobre
+// MIT License tem que abrir a licença
+// adicionar botões de termo de uso e política de privacidade

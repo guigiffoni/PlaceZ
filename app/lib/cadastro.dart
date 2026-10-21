@@ -14,6 +14,7 @@ class Cadastrador extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: 10.0,
             children: [
+              Image(image: AssetImage("assets/logo_principal.jpg")),
               Text("Email", textScaler: TextScaler.linear(1.5)),
               TextField(
                 decoration: InputDecoration(
