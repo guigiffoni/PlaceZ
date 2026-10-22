@@ -7,7 +7,6 @@ class TelaSobre extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-
       appBar: AppBar(
         backgroundColor: Colors.white,
         title: const Text(
@@ -32,7 +31,6 @@ class TelaSobre extends StatelessWidget {
             ),
 
             SizedBox(height: 12),
-
             Text(
               "Guilherme Amaral Giffoni\n"
               "Pedro Henrique Ferreira\n"
@@ -44,6 +42,7 @@ class TelaSobre extends StatelessWidget {
             ),
 
             SizedBox(height: 35),
+            Image(image: AssetImage("assets/logo_principal.jpg")),
 
             Text(
               "Sobre o PlaceZ",

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import 'calendario.dart';
-import 'pesquisa.dart';
-import 'cadastro.dart';
-import 'chat.dart';
-import 'evento.dart';
-import 'sobre.dart';
+import 'ui/calendario.dart';
+import 'ui/pesquisa.dart';
+import 'ui/cadastro.dart';
+import 'ui/chat.dart';
+import 'ui/evento.dart';
+import 'ui/sobre.dart';
 
 void main() {
   runApp(const MainApp());
@@ -118,7 +118,7 @@ class _BarraNavegacaoState
 
           NavigationDestination(
             icon: Icon(
-              Icons.circle_outlined,
+              Icons.person,
             ),
             label: "Perfil",
           ),
