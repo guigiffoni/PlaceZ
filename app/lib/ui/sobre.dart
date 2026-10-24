@@ -3,6 +3,16 @@ import 'package:flutter/material.dart';
 class TelaSobre extends StatelessWidget {
   const TelaSobre({super.key});
 
+  // @override
+  // Widget build(BuildContext context) {
+  //   return showLicensePage(
+  //     context: context, 
+  //     applicationName: 'Placez',
+  //     applicationVersion: '1.0.0'
+  //   );
+  // }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

@@ -6,36 +6,78 @@ import 'ui/cadastro.dart';
 import 'ui/chat.dart';
 import 'ui/evento.dart';
 import 'ui/sobre.dart';
+import 'ui/contatos.dart';
+
+import 'tema_controller.dart';
 
 void main() {
   runApp(const MainApp());
 }
 
-class MainApp extends StatelessWidget {
+class MainApp extends StatefulWidget {
   const MainApp({super.key});
 
   @override
+  State<MainApp> createState() => _MainAppState();
+}
+
+class _MainAppState extends State<MainApp> {
+  final TemaController _temaController = TemaController();
+
+  @override
+  void initState() {
+    super.initState();
+
+    _temaController.carregaPreferencias();
+  }
+
+  @override
+  void dispose() {
+    _temaController.dispose();
+
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: "PlaceZ",
-      debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.system,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.red.shade500,
-        ),
-      ),
-      home: const BarraNavegacao(),
+    return ListenableBuilder(
+      listenable: _temaController, 
+      builder: (context, cuild) {
+        return MaterialApp(
+          title: "PlaceZ",
+          debugShowCheckedModeBanner: false,
+          themeMode: _temaController.modoTema,
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: _temaController.seedCor,
+              brightness: Brightness.light,
+            )
+          ),
+          darkTheme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: _temaController.seedCor,
+              brightness: Brightness.dark,
+            )
+          ),
+          home: BarraNavegacao(temaController: _temaController),
+        );
+      }
     );
   }
 }
 
 class BarraNavegacao extends StatefulWidget {
-  const BarraNavegacao({super.key});
+  final TemaController temaController;
+
+  const BarraNavegacao({
+    super.key,
+    required this.temaController
+  });
 
   @override
-  State<BarraNavegacao> createState() =>
-      _BarraNavegacaoState();
+  State<BarraNavegacao> createState() => _BarraNavegacaoState();
 }
 
 class _BarraNavegacaoState
@@ -46,8 +88,8 @@ class _BarraNavegacaoState
     const TelaCalendario(),
     const TelaChat(),
     const TelaEvento(),
-    const Pesquisa(),
-    const Cadastrador(),
+    const TelaPesquisa(),
+    const TelaContatos(),
   ];
 
   @override
@@ -55,15 +97,13 @@ class _BarraNavegacaoState
     return Scaffold(
       appBar: AppBar(
         title: const Text("PlaceZ"),
-        backgroundColor: Colors.red.shade500,
         actions: [
           IconButton(
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
-                      const TelaSobre(),
+                  builder: (context) => const TelaSobre(),
                 ),
               );
             },
@@ -74,53 +114,39 @@ class _BarraNavegacaoState
         ],
       ),
 
-      body: _widgetOptions.elementAt(
-        _currentPageIndex,
+      body: IndexedStack(
+        index: _currentPageIndex,
+        children: _widgetOptions,
       ),
 
       bottomNavigationBar: NavigationBar(
-        labelBehavior:
-            NavigationDestinationLabelBehavior
-                .alwaysHide,
-
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         selectedIndex: _currentPageIndex,
-
         onDestinationSelected: (int value) {
           setState(() {
             _currentPageIndex = value;
           });
         },
-
         destinations: const [
           NavigationDestination(
-            icon: Icon(
-              Icons.calendar_month,
-            ),
-            label: "Calendário",
+            icon: Icon(Icons.calendar_month),
+            label: "Calendário"
           ),
-
           NavigationDestination(
-            icon: Icon(
-              Icons.chat_bubble_outline,
-            ),
-            label: "Chat",
+            icon: Icon(Icons.chat_bubble_outline),
+            label: "Chat"
           ),
-
           NavigationDestination(
             icon: Icon(Icons.add),
-            label: "Adicionar evento",
+            label: "Adicionar evento"
           ),
-
           NavigationDestination(
             icon: Icon(Icons.search),
-            label: "Pesquisar lugares",
-          ),
-
+            label: "Pesquisar lugares"
+          ), 
           NavigationDestination(
-            icon: Icon(
-              Icons.person,
-            ),
-            label: "Perfil",
+            icon: Icon(Icons.contacts),
+            label: "Contatos"
           ),
         ],
       ),

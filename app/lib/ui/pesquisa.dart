@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-class Pesquisa extends StatefulWidget {
-  const Pesquisa({super.key});
+class TelaPesquisa extends StatefulWidget {
+  const TelaPesquisa({super.key});
 
   @override
-  State<Pesquisa> createState() => _PesquisaState();
+  State<TelaPesquisa> createState() => _TelaPesquisaState();
 }
 
-class _PesquisaState extends State<Pesquisa> {
+class _TelaPesquisaState extends State<TelaPesquisa> {
   final _controller = TextEditingController();
   String _termoBusca = '';
 

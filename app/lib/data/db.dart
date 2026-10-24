@@ -31,8 +31,9 @@ class BancoApp {
         // Tabela de pessoas
         await db.execute(
           '''CREATE TABLE IF NOT EXISTS pessoa(
-            id    INTEGER PRIMARY KEY,
-            nome  TEXT NOT NULL,
+            id        INTEGER PRIMARY KEY,
+            nome      TEXT NOT NULL,
+            username  TEXT NOT NULL
           );'''
         );
 
