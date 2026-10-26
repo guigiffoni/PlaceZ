@@ -1,80 +1,124 @@
-import 'package:app/calendario.dart';
 import 'package:flutter/material.dart';
 
-import 'pesquisa.dart';
-// import 'calendario.dart';
-import 'cadastro.dart';
+import 'ui/calendario.dart';
+import 'ui/pesquisa.dart';
+import 'ui/cadastro.dart';
+import 'ui/chat.dart';
+import 'ui/evento.dart';
+import 'ui/sobre.dart';
+import 'ui/contatos.dart';
+
+import 'tema_controller.dart';
 
 void main() {
   runApp(const MainApp());
 }
 
-class MainApp extends StatelessWidget {
+class MainApp extends StatefulWidget {
   const MainApp({super.key});
 
   @override
+  State<MainApp> createState() => _MainAppState();
+}
+
+class _MainAppState extends State<MainApp> {
+  final TemaController _temaController = TemaController();
+
+  @override
+  void initState() {
+    super.initState();
+
+    _temaController.carregaPreferencias();
+  }
+
+  @override
+  void dispose() {
+    _temaController.dispose();
+
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      themeMode: ThemeMode.system,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange)
-      ),
-      home: BottomNavigationBar(),
+    return ListenableBuilder(
+      listenable: _temaController, 
+      builder: (context, cuild) {
+        return MaterialApp(
+          title: "PlaceZ",
+          debugShowCheckedModeBanner: false,
+          themeMode: _temaController.modoTema,
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: _temaController.seedCor,
+              brightness: Brightness.light,
+            )
+          ),
+          darkTheme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: _temaController.seedCor,
+              brightness: Brightness.dark,
+            )
+          ),
+          home: BarraNavegacao(temaController: _temaController),
+        );
+      }
     );
   }
 }
 
-class BottomNavigationBar extends StatefulWidget {
-  const BottomNavigationBar({super.key});
+class BarraNavegacao extends StatefulWidget {
+  final TemaController temaController;
+
+  const BarraNavegacao({
+    super.key,
+    required this.temaController
+  });
 
   @override
-  State<BottomNavigationBar> createState() => _BottomNavigationBarState();
+  State<BarraNavegacao> createState() => _BarraNavegacaoState();
 }
 
-class _BottomNavigationBarState extends State<BottomNavigationBar> {
+class _BarraNavegacaoState
+    extends State<BarraNavegacao> {
   int _currentPageIndex = 0;
 
   final List<Widget> _widgetOptions = [
-    TelaCalendario(),
-    Text("WIP Chat"),
-    Text("Adicionar evento"),
-    Pesquisa(),
-    Cadastrador(),
+    const TelaCalendario(),
+    const TelaChat(),
+    const TelaEvento(),
+    const TelaPesquisa(),
+    const TelaContatos(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("PlaceZ"),
-        backgroundColor: Colors.red.shade300,
+        title: const Text("PlaceZ"),
         actions: [
           IconButton(
-            onPressed: () => showAboutDialog(
-              context: context,
-              applicationName: "PlaceZ (Plêi Cês)",
-              applicationLegalese: "MIT License",
-              children: const [
-                SizedBox(height: 16,),
-                Text(
-                  "Criado no segundo semestre de 2026 para a disciplina de " + 
-                  "desenvolvimento móvel, com o intuito de facilitar o " + 
-                  "encontro entre amigos."
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TelaSobre(),
                 ),
-                SizedBox(height: 16),
-                Text("Desenvolvido por:"),
-                Text("Guilherme Amaral Giffoni"),
-                Text("Pedro Henrique"),
-                Text("Rodrigo Fernandes"),
-              ]
-            ), 
-            icon: Icon(Icons.info)
-          )
+              );
+            },
+            icon: const Icon(
+              Icons.info_outline,
+            ),
+          ),
         ],
       ),
-      body: Expanded(
-        child: _widgetOptions.elementAt(_currentPageIndex)
+
+      body: IndexedStack(
+        index: _currentPageIndex,
+        children: _widgetOptions,
       ),
+
       bottomNavigationBar: NavigationBar(
         labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         selectedIndex: _currentPageIndex,
@@ -83,29 +127,34 @@ class _BottomNavigationBarState extends State<BottomNavigationBar> {
             _currentPageIndex = value;
           });
         },
-        destinations: <Widget>[
+        destinations: const [
           NavigationDestination(
             icon: Icon(Icons.calendar_month),
-            label: "Calendário",
+            label: "Calendário"
           ),
           NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline),
-            label: "Chat",
+            label: "Chat"
           ),
           NavigationDestination(
-            icon: Icon(Icons.add,),
-            label: "Adicionar evento",
+            icon: Icon(Icons.add),
+            label: "Adicionar evento"
           ),
           NavigationDestination(
             icon: Icon(Icons.search),
-            label: "Pesquisar lugares",
-          ),
+            label: "Pesquisar lugares"
+          ), 
           NavigationDestination(
-            icon: Icon(Icons.circle_outlined),
-            label: "Perfil",
+            icon: Icon(Icons.contacts),
+            label: "Contatos"
           ),
         ],
       ),
     );
   }
 }
+
+// adicionar o github das pessoas que participaram do projeto
+// ajustar a logo na tela de cadastro e sobre
+// MIT License tem que abrir a licença
+// adicionar botões de termo de uso e política de privacidade

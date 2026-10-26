@@ -1,11 +1,11 @@
 ﻿
 import 'package:flutter/material.dart';
 
-import 'data/atualizacoes.dart';
-import 'data/dao/dao_evento.dart';
-import 'data/dao/dao_local.dart';
-import 'data/models/evento.dart';
-import 'data/models/local.dart';
+import '../data/atualizacoes.dart';
+import '../data/dao/dao_evento.dart';
+import '../data/dao/dao_local.dart';
+import '../data/models/evento.dart';
+import '../data/models/local.dart';
 
 class TelaEvento extends StatefulWidget {
   final Evento? eventoExistente;
@@ -333,4 +333,5 @@ class _TelaEventoState extends State<TelaEvento> {
     );
   }
 }
+
 

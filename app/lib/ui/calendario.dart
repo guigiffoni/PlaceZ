@@ -1,10 +1,10 @@
 ﻿
 import 'package:flutter/material.dart';
 
-import 'data/atualizacoes.dart';
-import 'data/dao/dao_evento.dart';
-import 'data/dao/dao_local.dart';
-import 'data/models/evento.dart';
+import '../data/atualizacoes.dart';
+import '../data/dao/dao_evento.dart';
+import '../data/dao/dao_local.dart';
+import '../data/models/evento.dart';
 import 'evento.dart';
 
 class TelaCalendario extends StatefulWidget {
@@ -677,4 +677,5 @@ class _TelaCalendarioState extends State<TelaCalendario> {
     );
   }
 }
+
 
