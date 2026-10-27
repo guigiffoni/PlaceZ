@@ -1,7 +1,7 @@
 import '../models/evento.dart';
 import '../db.dart';
 
-class DaoEvento {
+class EventoDao {
   Future<int> insert(Evento evento) async {
     final db = await BancoApp.instancia.database;
 

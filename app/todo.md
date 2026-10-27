@@ -1,11 +1,11 @@
 - [x] adicionar mais colunas para a tabela de pessoas (lista de contatos)
 - [x] CRUD de preferências do usuário (usar o shared preferences)
 - [x] fazer um CRUD dos eventos, e que esses eventos mostrem no calendário
-- [ ] No calendário, um dia que tiver um evento cadastrado, ao clicar, as informações do único evento do dia abrem, se neste mesmo dia, tiver mais de um evento, aparece uma lista para o usuário selecionar o evento que deseja ver as informações
-- [ ] os eventos que são de vários dias, devem ocupar vários dias visualmente, por exemplo, com uma linha que passa pelos dias
-- [ ] que cada evento criado com localização, que a localização seja cadastrada na tabela chamada "local", este local, deve ser referenciado no registro do evento correspondente
-- [ ] o calendário deve navegar entre os meses e mostrar os eventos correspondentes
-- [ ] CRUD da lista de contatos
-- [ ] histórico de mensagens, se possível, CRUD completo
+- [x] CRUD da lista de contatos
+- [x] o calendário deve navegar entre os meses e mostrar os eventos correspondentes
+- [x] que cada evento criado com localização, que a localização seja cadastrada na tabela chamada "local", este local, deve ser referenciado no registro do evento correspondente
+- [x] pesquisa básica dos estabelecimentos (podem ser fictícios por enquanto)
 - [ ] e pensar em alguma forma de armazenar o perfil do próprio usuário
-- [ ] pesquisa básica dos estabelecimentos (podem ser fictícios por enquanto)
+- [ ] histórico de mensagens, se possível, CRUD completo
+- [-] No calendário, um dia que tiver um evento cadastrado, ao clicar, as informações do único evento do dia abrem, se neste mesmo dia, tiver mais de um evento, aparece uma lista para o usuário selecionar o evento que deseja ver as informações
+- [-] os eventos que são de vários dias, devem ocupar vários dias visualmente, por exemplo, com uma linha que passa pelos dias

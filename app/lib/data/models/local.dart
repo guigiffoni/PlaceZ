@@ -4,6 +4,9 @@ class Local {
   final String? endereco;
   final int? numero;
   final String? complemento;
+  final double? nota;
+  final double? latitude;
+  final double? longitude;
 
   Local({
     this.id,
@@ -11,6 +14,9 @@ class Local {
     this.endereco,
     this.numero,
     this.complemento,
+    this.nota,
+    this.latitude,
+    this.longitude,
   });
 
   Map<String, dynamic> toMap() {
@@ -20,6 +26,9 @@ class Local {
       'endereco': endereco,
       'numero': numero,
       'complemento': complemento,
+      'nota': nota,
+      'latitude': latitude,
+      'longitude': longitude,
     };
   }
 
@@ -30,6 +39,9 @@ class Local {
       endereco: map['endereco'] as String?,
       numero: map['numero'] as int?,
       complemento: map['complemento'] as String?,
+      nota: map['nota'] as double?,
+      latitude: map['latitude'] as double,
+      longitude: map['longitude'] as double,
     );
   }
 }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'ui/calendario.dart';
 import 'ui/pesquisa.dart';
-import 'ui/cadastro.dart';
+import 'ui/telas/cadastro.dart';
 import 'ui/chat.dart';
 import 'ui/evento.dart';
 import 'ui/sobre.dart';
@@ -87,7 +87,7 @@ class _BarraNavegacaoState
   final List<Widget> _widgetOptions = [
     const TelaCalendario(),
     const TelaChat(),
-    const TelaEvento(),
+    const TelaCadastroEvento(),
     const TelaPesquisa(),
     const TelaContatos(),
   ];
@@ -114,10 +114,7 @@ class _BarraNavegacaoState
         ],
       ),
 
-      body: IndexedStack(
-        index: _currentPageIndex,
-        children: _widgetOptions,
-      ),
+      body: _widgetOptions[_currentPageIndex],
 
       bottomNavigationBar: NavigationBar(
         labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,

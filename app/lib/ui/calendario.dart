@@ -1,4 +1,11 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'package:app/ui/widgets/seletor_mapa.dart';
+import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:table_calendar/table_calendar.dart';
+
+import '../data/models/evento.dart';
+import '../data/dao/evento_dao.dart';
+import '../data/dao/local_dao.dart';
 
 class TelaCalendario extends StatefulWidget {
   const TelaCalendario({super.key});
@@ -8,92 +15,146 @@ class TelaCalendario extends StatefulWidget {
 }
 
 class _TelaCalendarioState extends State<TelaCalendario> {
-  DateTime mesAtual = DateTime.now();
+  final EventoDao _eventoDao = EventoDao();
 
-  final List<DateTime> diasSelecionados = [];
+  DateTime _focusedDay = DateTime.now();
+  DateTime _selectedDay = DateTime.now();
+  bool _isLoading = true;
 
-  final List<String> pessoas = [];
+  // Mapa que agrupa os eventos por dia (chave normalizada para meia-noite)
+  Map<DateTime, List<Evento>> _eventosPorDia = {};
 
-  bool diaEstaSelecionado(DateTime data) {
-    return diasSelecionados.any(
-      (dia) =>
-          dia.day == data.day &&
-          dia.month == data.month &&
-          dia.year == data.year,
+  // Lista de eventos do dia selecionado
+  List<Evento> _eventosDoDia = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarEventos();
+  }
+
+  Future<void> _carregarEventos() async {
+    try {
+      final eventos = await _eventoDao.getAll();
+      final Map<DateTime, List<Evento>> agrupados = {};
+
+      for (var evento in eventos) {
+        // Converte o timestamp salvo (segundos) para DateTime e normaliza para o dia
+        final dataEvento = DateTime.fromMillisecondsSinceEpoch(
+          evento.dataHoraInicio * 1000,
+        );
+        final diaNormalizado = DateTime.utc(
+          dataEvento.year,
+          dataEvento.month,
+          dataEvento.day,
+        );
+
+        if (agrupados[diaNormalizado] == null) {
+          agrupados[diaNormalizado] = [];
+        }
+        agrupados[diaNormalizado]!.add(evento);
+      }
+
+      if (mounted) {
+        setState(() {
+          _eventosPorDia = agrupados;
+          _atualizarEventosDoDia();
+        });
+      }
+    } catch (e) {
+      debugPrint("Erro ao carregar eventos: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _atualizarEventosDoDia() {
+    final diaNormalizado = DateTime.utc(
+      _selectedDay.year,
+      _selectedDay.month,
+      _selectedDay.day,
+    );
+    _eventosDoDia = _eventosPorDia[diaNormalizado] ?? [];
+  }
+
+  // Formata o timestamp para exibir na lista (Ex: 14:30)
+  String _formatarHora(int unixTimestamp) {
+    final data = DateTime.fromMillisecondsSinceEpoch(unixTimestamp * 1000);
+    final hora = data.hour.toString().padLeft(2, '0');
+    final minuto = data.minute.toString().padLeft(2, '0');
+    return "$hora:$minuto";
+  }
+
+  void _abrirMapaFocado(double lat, double lng) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SeletorMapa(
+          posicaoInicial: LatLng(lat, lng),
+          apenasVisualizacao: true, // Apenas visualizar, sem botão de salvar
+        ),
+      ),
     );
   }
 
-  void selecionarDia(DateTime data) {
-    setState(() {
-      if (diaEstaSelecionado(data)) {
-        diasSelecionados.removeWhere(
-          (dia) =>
-              dia.day == data.day &&
-              dia.month == data.month &&
-              dia.year == data.year,
-        );
-      } else {
-        diasSelecionados.add(data);
-      }
-    });
-  }
-
-  String nomeMes(int mes) {
-    const meses = [
-      "Janeiro",
-      "Fevereiro",
-      "Março",
-      "Abril",
-      "Maio",
-      "Junho",
-      "Julho",
-      "Agosto",
-      "Setembro",
-      "Outubro",
-      "Novembro",
-      "Dezembro",
-    ];
-
-    return meses[mes - 1];
-  }
-
-  void adicionarPessoa() {
-    final TextEditingController nomeController = TextEditingController();
+  void _mostrarDetalhesEvento(Evento evento) {
+    // Formatação básica das datas para exibição
+    final inicio = DateTime.fromMillisecondsSinceEpoch(
+      evento.dataHoraInicio * 1000,
+    );
+    final fim = DateTime.fromMillisecondsSinceEpoch(evento.dataHoraFim * 1000);
+    final dataInicioStr =
+        "${inicio.day.toString().padLeft(2, '0')}/${inicio.month.toString().padLeft(2, '0')} às ${inicio.hour.toString().padLeft(2, '0')}:${inicio.minute.toString().padLeft(2, '0')}";
+    final dataFimStr =
+        "${fim.day.toString().padLeft(2, '0')}/${fim.month.toString().padLeft(2, '0')} às ${fim.hour.toString().padLeft(2, '0')}:${fim.minute.toString().padLeft(2, '0')}";
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Adicionar pessoa"),
-          content: TextField(
-            controller: nomeController,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: "Nome",
-              hintText: "Digite o nome da pessoa",
-              border: OutlineInputBorder(),
-            ),
+          title: Text(evento.titulo),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (evento.descricao != null && evento.descricao!.isNotEmpty) ...[
+                Text(evento.descricao!),
+                const SizedBox(height: 16),
+              ],
+              Text("Início: $dataInicioStr"),
+              Text("Fim: $dataFimStr"),
+
+              // Se tiver local, mostra o botão para abrir o mapa
+              if (evento.idLocal != null) ...[
+                const SizedBox(height: 16),
+                TextButton.icon(
+                  icon: const Icon(Icons.map),
+                  label: const Text('Ver no Mapa'),
+                  onPressed: () async {
+                    // Busca o local no banco (precisamos do LocalDao aqui)
+                    final local = await LocalDao().getById(evento.idLocal!);
+                    if (local != null &&
+                        local.latitude != null &&
+                        local.longitude != null) {
+                      Navigator.pop(context); // Fecha o modal
+                      // Abre o mapa focado no local (veremos como fazer abaixo)
+                      _abrirMapaFocado(local.latitude!, local.longitude!);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Local sem coordenadas cadastradas.'),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ],
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text("Cancelar"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                String nome = nomeController.text.trim();
-
-                if (nome.isNotEmpty) {
-                  setState(() {
-                    pessoas.add(nome);
-                  });
-
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text("Adicionar"),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fechar'),
             ),
           ],
         );
@@ -103,276 +164,72 @@ class _TelaCalendarioState extends State<TelaCalendario> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-          // Pessoas
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                const SizedBox(width: 12),
+    return Column(
+      children: [
+        // 1. O Calendário
+        TableCalendar(
+          firstDay: DateTime.utc(2020, 1, 1),
+          lastDay: DateTime.utc(2030, 12, 31),
+          focusedDay: _focusedDay,
+          selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
 
-                OutlinedButton.icon(
-                  onPressed: adicionarPessoa,
-                  icon: const Icon(
-                    Icons.person_add_alt_1,
-                    size: 18,
-                  ),
-                  label: const Text("Adicionar pessoa"),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF071369),
-                    side: const BorderSide(
-                      color: Color(0xFF071369),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(width: 6),
-
-                ...pessoas.map(
-                  (nome) => participante(
-                    nome,
-                    const Color(0xFF858CD8),
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Mês e botões
-          Row(
-            children: [
-              IconButton(
-                onPressed: () {
-                  setState(() {
-                    mesAtual = DateTime(
-                      mesAtual.year,
-                      mesAtual.month - 1,
-                    );
-                  });
-                },
-                icon: const Icon(Icons.chevron_left),
-              ),
-
-              Expanded(
-                child: Center(
-                  child: Text(
-                    "${nomeMes(mesAtual.month)} ${mesAtual.year}",
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-
-              IconButton(
-                onPressed: () {
-                  setState(() {
-                    mesAtual = DateTime(
-                      mesAtual.year,
-                      mesAtual.month + 1,
-                    );
-                  });
-                },
-                icon: const Icon(Icons.chevron_right),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 5),
-
-          // Dias da semana
-          const Row(
-            children: [
-              Expanded(child: Center(child: Text("DOM"))),
-              Expanded(child: Center(child: Text("SEG"))),
-              Expanded(child: Center(child: Text("TER"))),
-              Expanded(child: Center(child: Text("QUA"))),
-              Expanded(child: Center(child: Text("QUI"))),
-              Expanded(child: Center(child: Text("SEX"))),
-              Expanded(child: Center(child: Text("SÁB"))),
-            ],
-          ),
-
-          const SizedBox(height: 5),
-
-          // Calendário
-          Expanded(
-            child: construirCalendario(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget construirCalendario() {
-    int ano = mesAtual.year;
-    int mes = mesAtual.month;
-
-    int quantidadeDias = DateTime(
-      ano,
-      mes + 1,
-      0,
-    ).day;
-
-    int primeiroDiaSemana = DateTime(
-          ano,
-          mes,
-          1,
-        ).weekday %
-        7;
-
-    int totalCelulas = primeiroDiaSemana + quantidadeDias;
-
-    int quantidadeSemanas = (totalCelulas / 7).ceil();
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        double larguraCelula = constraints.maxWidth / 7;
-
-        double alturaCelula =
-            constraints.maxHeight / quantidadeSemanas;
-
-        double proporcao = larguraCelula / alturaCelula;
-
-        return GridView.builder(
-          padding: EdgeInsets.zero,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 7,
-            childAspectRatio: proporcao,
-          ),
-          itemCount: quantidadeSemanas * 7,
-          itemBuilder: (context, index) {
-            int numeroDia =
-                index - primeiroDiaSemana + 1;
-
-            if (numeroDia < 1 ||
-                numeroDia > quantidadeDias) {
-              return construirCelulaVazia();
-            }
-
-            DateTime data = DateTime(
-              ano,
-              mes,
-              numeroDia,
-            );
-
-            return construirDia(
-              data,
-              numeroDia,
-            );
+          // Configuração dos pontos (dots)
+          eventLoader: (day) {
+            final diaNormalizado = DateTime.utc(day.year, day.month, day.day);
+            return _eventosPorDia[diaNormalizado] ?? [];
           },
-        );
-      },
-    );
-  }
-
-  Widget construirDia(
-    DateTime data,
-    int numeroDia,
-  ) {
-    bool selecionado = diaEstaSelecionado(data);
-
-    return GestureDetector(
-      onTap: () {
-        selecionarDia(data);
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: selecionado
-              ? const Color(0xFFE4E1FF)
-              : Colors.white,
-          border: Border.all(
-            color: const Color(0xFFEEEEEE),
-            width: 0.5,
+          calendarStyle: const CalendarStyle(
+            markerDecoration: BoxDecoration(
+              color: Colors.blue, // Cor do pontinho
+              shape: BoxShape.rectangle,
+            ),
+            markersMaxCount: 3, // Se tiver mais de 3 eventos no dia, corta
           ),
+
+          // Atualização ao mudar o dia ou o mês
+          onDaySelected: (selectedDay, focusedDay) {
+            setState(() {
+              _selectedDay = selectedDay;
+              _focusedDay = focusedDay;
+              _atualizarEventosDoDia();
+            });
+          },
+          onPageChanged: (focusedDay) {
+            _focusedDay = focusedDay;
+          },
+          rowHeight: 80.0,
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(7),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selecionado
-                      ? const Color(0xFF071369)
-                      : Colors.transparent,
-                  shape: BoxShape.circle,
+
+        const Divider(),
+
+        // 2. Lista de Eventos do Dia Selecionado
+        Expanded(
+          child: _eventosDoDia.isEmpty
+              ? const Center(child: Text('Nenhum evento para este dia.'))
+              : ListView.builder(
+                  itemCount: _eventosDoDia.length,
+                  itemBuilder: (context, index) {
+                    final evento = _eventosDoDia[index];
+
+                    return ListTile(
+                      leading: const Icon(Icons.event),
+                      title: Text(evento.titulo),
+                      subtitle: Text(_formatarHora(evento.dataHoraInicio)),
+                      onTap: () => _mostrarDetalhesEvento(evento),
+                      trailing:
+                          evento.descricao != null &&
+                              evento.descricao!.isNotEmpty
+                          ? const Icon(Icons.info_outline, size: 16)
+                          : null,
+                    );
+                  },
                 ),
-                child: Text(
-                  "$numeroDia",
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: selecionado
-                        ? Colors.white
-                        : const Color(0xFF555555),
-                    fontWeight: selecionado
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                  ),
-                ),
-              ),
-
-              // Espaço reservado para eventos futuros
-              const Expanded(
-                child: SizedBox(),
-              ),
-            ],
-          ),
         ),
-      ),
-    );
-  }
-
-  Widget construirCelulaVazia() {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFA),
-        border: Border.all(
-          color: const Color(0xFFEEEEEE),
-          width: 0.5,
-        ),
-      ),
-    );
-  }
-
-  Widget participante(
-    String nome,
-    Color cor,
-  ) {
-    return Container(
-      margin: const EdgeInsets.only(right: 6),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 8,
-      ),
-      decoration: BoxDecoration(
-        color: cor,
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Text(
-        nome,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-        ),
-      ),
+      ],
     );
   }
 }

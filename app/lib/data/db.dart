@@ -32,8 +32,7 @@ class BancoApp {
         await db.execute(
           '''CREATE TABLE IF NOT EXISTS pessoa(
             id        INTEGER PRIMARY KEY,
-            nome      TEXT NOT NULL,
-            username  TEXT NOT NULL
+            nome      TEXT NOT NULL
           );'''
         );
 
@@ -44,7 +43,10 @@ class BancoApp {
             nome        TEXT,
             endereco    TEXT,
             numero      INTEGER,
-            complemento TEXT
+            complemento TEXT,
+            nota        REAL,
+            latitude    REAL,
+            longitude   REAL
           );'''
         );
 
@@ -56,7 +58,7 @@ class BancoApp {
             descricao         TEXT,
             data_hora_inicio  INTEGER,
             data_hora_fim     INTEGER,
-            criado_em         INTEGER DEFAULT unixepoch(),
+            criado_em         INTEGER DEFAULT (strftime('%s', 'now')),
             id_local          INTEGER,
             criado_por        INTEGER,
             FOREIGN KEY(id_local) REFERENCES local(id),

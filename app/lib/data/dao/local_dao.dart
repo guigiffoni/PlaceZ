@@ -1,7 +1,7 @@
 import '../models/local.dart';
 import '../db.dart';
 
-class DaoLocal {
+class LocalDao {
   Future<int> insert(Local local) async {
     final db = await BancoApp.instancia.database;
 
@@ -13,6 +13,16 @@ class DaoLocal {
     final List<Map<String, dynamic>> maps = await db.query('local');
 
     return maps.map((map) => Local.fromMap(map)).toList();
+  }
+
+  Future<Local?> getById(int id) async {
+    final db = await BancoApp.instancia.database;
+    final maps = await db.query('local', where: 'id = ?', whereArgs: [id]);
+
+    if (maps.isNotEmpty) {
+      return Local.fromMap(maps.first);
+    }
+    return null;
   }
 
   Future<int> update(Local local) async {
@@ -28,11 +38,7 @@ class DaoLocal {
 
   Future<int> delete(int id) async {
     final db = await BancoApp.instancia.database;
-    
-    return await db.delete(
-      'local',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+
+    return await db.delete('local', where: 'id = ?', whereArgs: [id]);
   }
 }

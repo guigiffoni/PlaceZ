@@ -36,10 +36,10 @@ class Evento {
     return Evento(
       id: map['id'] as int?,
       titulo: map['titulo'] as String,
-      descricao: map['descricao'] as String,
+      descricao: map['descricao'] as String?,
       dataHoraInicio: map['data_hora_inicio'] as int,
       dataHoraFim: map['data_hora_fim'] as int,
-      criadoEm: map['criado_em'] as int,
+      criadoEm: map['criado_em'] as int? ?? DateTime.now().millisecondsSinceEpoch ~/ 1000,
       idLocal: map['id_local'] as int?,
       criadoPor: map['criado_por'] as int?,
     );

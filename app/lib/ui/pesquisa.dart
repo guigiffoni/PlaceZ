@@ -121,6 +121,10 @@ class _TelaPesquisaState extends State<TelaPesquisa> {
 
   @override
   Widget build(BuildContext context) {
+    final restaurantesFiltrados = restaurantes.where((r) {
+      return r.nome.toLowerCase().contains(_termoBusca.toLowerCase());
+    }).toList();
+
     return Column(
       children: [
         Expanded(
@@ -128,8 +132,8 @@ class _TelaPesquisaState extends State<TelaPesquisa> {
             padding: EdgeInsets.all(8.0),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             separatorBuilder: (context, index) => SizedBox(height: 10),
-            itemCount: restaurantes.length,
-            itemBuilder: (context, index) => LugarPesquisa(restaurantes[index]),
+            itemCount: restaurantesFiltrados.length,
+            itemBuilder: (context, index) => LugarPesquisa(restaurantesFiltrados[index]),
           ),
         ),
         Padding(
