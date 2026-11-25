@@ -1,0 +1,146 @@
+[
+  {
+    "nome": "Cantina do Nonno",
+    "endereco": "Rua Antônio de Albuquerque, 412 - Savassi, Belo Horizonte",
+    "categoria": "Restaurante italiano",
+    "distancia_metros": 850,
+    "latitude": -19.9361,
+    "longitude": -43.9352
+  },
+  {
+    "nome": "Sushi Yamato",
+    "endereco": "Rua Pernambuco, 1180 - Savassi, Belo Horizonte",
+    "categoria": "Japonês",
+    "distancia_metros": 1200,
+    "latitude": -19.9387,
+    "longitude": -43.9341
+  },
+  {
+    "nome": "Boteco da Esquina",
+    "endereco": "Rua Sergipe, 740 - Funcionários, Belo Horizonte",
+    "categoria": "Bar",
+    "distancia_metros": 640,
+    "latitude": -19.9334,
+    "longitude": -43.9308
+  },
+  {
+    "nome": "Verde Vivo",
+    "endereco": "Rua Paraíba, 330 - Funcionários, Belo Horizonte",
+    "categoria": "Vegano",
+    "distancia_metros": 980,
+    "latitude": -19.9312,
+    "longitude": -43.9297
+  },
+  {
+    "nome": "Churrascaria Gaúcha",
+    "endereco": "Avenida do Contorno, 6120 - Savassi, Belo Horizonte",
+    "categoria": "Churrascaria",
+    "distancia_metros": 2100,
+    "latitude": -19.9412,
+    "longitude": -43.9376
+  },
+  {
+    "nome": "Taco Loco",
+    "endereco": "Rua Cláudio Manoel, 520 - Funcionários, Belo Horizonte",
+    "categoria": "Mexicano",
+    "distancia_metros": 760,
+    "latitude": -19.9349,
+    "longitude": -43.9289
+  },
+  {
+    "nome": "Padaria Pão Quente",
+    "endereco": "Rua da Bahia, 1450 - Centro, Belo Horizonte",
+    "categoria": "Padaria e café",
+    "distancia_metros": 1500,
+    "latitude": -19.9256,
+    "longitude": -43.9359
+  },
+  {
+    "nome": "Curry & Cia",
+    "endereco": "Rua Tomé de Souza, 890 - Savassi, Belo Horizonte",
+    "categoria": "Indiano",
+    "distancia_metros": 1700,
+    "latitude": -19.9389,
+    "longitude": -43.9391
+  },
+  {
+    "nome": "Casa do Feijão",
+    "endereco": "Rua São Paulo, 1210 - Funcionários, Belo Horizonte",
+    "categoria": "Comida mineira",
+    "distancia_metros": 1100,
+    "latitude": -19.9323,
+    "longitude": -43.9345
+  },
+  {
+    "nome": "Bistrô Français",
+    "endereco": "Rua Alagoas, 460 - Savassi, Belo Horizonte",
+    "categoria": "Francês",
+    "distancia_metros": 1350,
+    "latitude": -19.9373,
+    "longitude": -43.9324
+  },
+  {
+    "nome": "Pastelaria Central",
+    "endereco": "Rua dos Tupis, 310 - Centro, Belo Horizonte",
+    "categoria": "Lanche",
+    "distancia_metros": 2300,
+    "latitude": -19.9237,
+    "longitude": -43.9371
+  },
+  {
+    "nome": "Açaí do Norte",
+    "endereco": "Rua Grão Pará, 280 - Santa Efigênia, Belo Horizonte",
+    "categoria": "Açaí",
+    "distancia_metros": 2600,
+    "latitude": -19.9271,
+    "longitude": -43.9226
+  },
+  {
+    "nome": "Pizzaria Bella Napoli",
+    "endereco": "Rua Rio de Janeiro, 830 - Lourdes, Belo Horizonte",
+    "categoria": "Pizzaria",
+    "distancia_metros": 1900,
+    "latitude": -19.9318,
+    "longitude": -43.9428
+  },
+  {
+    "nome": "Burger Artesanal",
+    "endereco": "Rua Fernandes Tourinho, 640 - Savassi, Belo Horizonte",
+    "categoria": "Hambúrguer",
+    "distancia_metros": 900,
+    "latitude": -19.9367,
+    "longitude": -43.9334
+  },
+  {
+    "nome": "Doceria Sonho Doce",
+    "endereco": "Rua Pernambuco, 340 - Savassi, Belo Horizonte",
+    "categoria": "Doceria",
+    "distancia_metros": 720,
+    "latitude": -19.9341,
+    "longitude": -43.9348
+  },
+  {
+    "nome": "Parque Municipal",
+    "endereco": "Avenida Afonso Pena, 1377 - Centro, Belo Horizonte",
+    "categoria": "Parque",
+    "distancia_metros": 2800,
+    "latitude": -19.9245,
+    "longitude": -43.9307
+  },
+  {
+    "nome": "Cine Belas Artes",
+    "endereco": "Rua Gonçalves Dias, 1581 - Lourdes, Belo Horizonte",
+    "categoria": "Cinema",
+    "distancia_metros": 1650,
+    "latitude": -19.9297,
+    "longitude": -43.9412
+  },
+  {
+    "nome": "Mercado Central",
+    "endereco": "Avenida Augusto de Lima, 744 - Centro, Belo Horizonte",
+    "categoria": "Mercado",
+    "distancia_metros": 2400,
+    "latitude": -19.9231,
+    "longitude": -43.9419
+  }
+]

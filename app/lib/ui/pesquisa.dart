@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../core/events/local_catalog.dart';
+import '../data/models/local.dart';
+
 class TelaPesquisa extends StatefulWidget {
   const TelaPesquisa({super.key});
 
@@ -9,16 +12,18 @@ class TelaPesquisa extends StatefulWidget {
 
 class _TelaPesquisaState extends State<TelaPesquisa> {
   final _controller = TextEditingController();
+  late Future<List<Local>> _futuro;
   String _termoBusca = '';
 
   @override
   void initState() {
     super.initState();
+    _futuro = LocalCatalog.carregar();
     _controller.addListener(_onBusca);
   }
 
   void _onBusca() {
-    setState(() => _termoBusca = _controller.text);
+    setState(() => _termoBusca = _controller.text.trim().toLowerCase());
   }
 
   @override
@@ -28,124 +33,65 @@ class _TelaPesquisaState extends State<TelaPesquisa> {
     super.dispose();
   }
 
-  final List<Lugar> restaurantes = [
-    Lugar(
-      nome: "Cantina do Nonno",
-      descricao: "Massas artesanais italianas feitas na hora, com receitas de família.",
-      avaliacao: 4.7,
-    ),
-    Lugar(
-      nome: "Sushi Yamato",
-      descricao: "Culinária japonesa tradicional com peixes frescos importados diariamente.",
-      avaliacao: 4.9,
-    ),
-    Lugar(
-      nome: "Boteco da Esquina",
-      descricao: "Petiscos brasileiros, chope gelado e música ao vivo nos fins de semana.",
-      avaliacao: 4.3,
-    ),
-    Lugar(
-      nome: "Verde Vivo",
-      descricao:
-          "Cozinha vegana orgânica com ingredientes de produtores locais.",
-      avaliacao: 4.5,
-    ),
-    Lugar(
-      nome: "Churrascaria Gaúcha",
-      descricao:
-          "Cortes nobres na brasa, rodízio completo e buffet de saladas.",
-      avaliacao: 4.8,
-    ),
-    Lugar(
-      nome: "Taco Loco",
-      descricao:
-          "Comida de rua mexicana autêntica, tacos, burritos e margaritas.",
-      avaliacao: 4.4,
-    ),
-    Lugar(
-      nome: "Padaria Pão Quente",
-      descricao: "Pães artesanais, doces caseiros e café coado na hora todas as manhãs.",
-      avaliacao: 4.6,
-    ),
-    Lugar(
-      nome: "Curry & Cia",
-      descricao:
-          "Pratos indianos apimentados com especiarias importadas de Mumbai.",
-      avaliacao: 4.2,
-    ),
-    Lugar(
-      nome: "Casa do Feijão",
-      descricao:
-          "Comida mineira caseira com feijão tropeiro, tutu e couve refogada.",
-      avaliacao: 4.8,
-    ),
-    Lugar(
-      nome: "Bistrô Français",
-      descricao: "Alta gastronomia francesa com menu degustação e carta de vinhos selecionados.",
-      avaliacao: 4.9,
-    ),
-    Lugar(
-      nome: "Pastelaria Central",
-      descricao:
-          "Pastéis crocantes fritos na hora, caldo de cana e sucos naturais.",
-      avaliacao: 4.1,
-    ),
-    Lugar(
-      nome: "Açaí do Norte",
-      descricao:
-          "Açaí cremoso com frutas frescas, granola e complementos variados.",
-      avaliacao: 4.5,
-    ),
-    Lugar(
-      nome: "Pizzaria Bella Napoli",
-      descricao: "Pizzas napolitanas assadas em forno a lenha com massa de fermentação natural.",
-      avaliacao: 4.7,
-    ),
-    Lugar(
-      nome: "Sopa & Cia",
-      descricao:
-          "Sopas cremosas e caldos reconfortantes, perfeitos para dias frios.",
-      avaliacao: 4.0,
-    ),
-    Lugar(
-      nome: "Burger Artesanal",
-      descricao: "Hambúrgueres gourmet com blend bovino, pão brioche e batatas rústicas.",
-      avaliacao: 4.6,
-    ),
-    Lugar(
-      nome: "Doceria Sonho Doce",
-      descricao: "Bolos, tortas e sobremesas finas feitas diariamente com ingredientes premium.",
-      avaliacao: 4.9,
-    ),
-  ];
+  List<Local> _filtrar(List<Local> locais) {
+    if (_termoBusca.isEmpty) return locais;
+    return locais.where((local) {
+      final campos = [
+        local.nome,
+        local.endereco,
+        local.categoria,
+      ].whereType<String>().map((valor) => valor.toLowerCase());
+      return campos.any((valor) => valor.contains(_termoBusca));
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final restaurantesFiltrados = restaurantes.where((r) {
-      return r.nome.toLowerCase().contains(_termoBusca.toLowerCase());
-    }).toList();
-
     return Column(
       children: [
         Expanded(
-          child: ListView.separated(
-            padding: EdgeInsets.all(8.0),
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            separatorBuilder: (context, index) => SizedBox(height: 10),
-            itemCount: restaurantesFiltrados.length,
-            itemBuilder: (context, index) => LugarPesquisa(restaurantesFiltrados[index]),
+          child: FutureBuilder<List<Local>>(
+            future: _futuro,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    'Não foi possível carregar os lugares.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                );
+              }
+
+              final locais = _filtrar(snapshot.data ?? const []);
+              if (locais.isEmpty) {
+                return const Center(child: Text('Nenhum lugar encontrado.'));
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.all(12),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                itemCount: locais.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 10),
+                itemBuilder: (context, index) => LugarPesquisa(locais[index]),
+              );
+            },
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(12),
           child: TextField(
-            decoration: InputDecoration(
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(35)),
-              ),
-              // suffixIcon: Icon(Icons.search)
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Buscar por nome, endereço ou categoria',
+              prefixIcon: Icon(Icons.search),
             ),
-            autofocus: true,
             controller: _controller,
           ),
         ),
@@ -154,93 +100,62 @@ class _TelaPesquisaState extends State<TelaPesquisa> {
   }
 }
 
-class Lugar {
-  final String nome;
-  final String descricao;
-  final double avaliacao;
-
-  const Lugar({
-    required this.nome,
-    required this.descricao,
-    required this.avaliacao,
-  });
-}
-
 class LugarPesquisa extends StatelessWidget {
   const LugarPesquisa(this.lugar, {super.key});
 
-  final Lugar lugar;
+  final Local lugar;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 80,
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        shape: BoxShape.rectangle,
-        borderRadius: BorderRadius.all(Radius.circular(10)),
-      ),
-      child: Padding(
-        padding: EdgeInsetsGeometry.all(8.0),
-        child: Row(
-          spacing: 8.0,
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      color: theme.colorScheme.surfaceContainerLow,
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: theme.colorScheme.primaryContainer,
+          foregroundColor: theme.colorScheme.onPrimaryContainer,
+          child: Icon(_icone(lugar.categoria)),
+        ),
+        title: Text(lugar.rotulo),
+        subtitle: Text(
+          lugar.endereco ?? 'Endereço não informado',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Expanded(child: Icon(Icons.table_bar)),
-            Expanded(
-              flex: 6,
-              child: InfoEstabelecimento(
-                nome: lugar.nome,
-                descricao: lugar.descricao,
+            Text(lugar.categoria ?? 'Lugar', style: theme.textTheme.labelSmall),
+            const SizedBox(height: 2),
+            Text(
+              formatarDistancia(lugar.distanciaMetros),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            AvaliacaoEstrela(lugar.avaliacao),
           ],
         ),
       ),
     );
   }
-}
 
-class InfoEstabelecimento extends StatelessWidget {
-  const InfoEstabelecimento({
-    required this.nome,
-    required this.descricao,
-    super.key,
-  });
-
-  final String nome;
-  final String descricao;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(nome, overflow: TextOverflow.fade, maxLines: 1),
-        Text(descricao, overflow: TextOverflow.ellipsis, maxLines: 2),
-      ],
-    );
-  }
-}
-
-class AvaliacaoEstrela extends StatelessWidget {
-  const AvaliacaoEstrela(this.avaliacao, {super.key});
-
-  final double avaliacao;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      alignment: Alignment.topRight,
-      child: Row(
-        children: [
-          Text(
-            avaliacao.toStringAsPrecision(2),
-            style: TextStyle(color: Colors.yellow.shade900),
-          ),
-          Icon(Icons.star, color: Colors.yellow.shade600),
-        ],
-      ),
-    );
+  IconData _icone(String? categoria) {
+    final valor = (categoria ?? '').toLowerCase();
+    if (valor.contains('bar')) return Icons.local_bar_outlined;
+    if (valor.contains('café') || valor.contains('padaria')) {
+      return Icons.local_cafe_outlined;
+    }
+    if (valor.contains('parque')) return Icons.park_outlined;
+    if (valor.contains('cinema')) return Icons.movie_outlined;
+    if (valor.contains('mercado')) return Icons.storefront_outlined;
+    if (valor.contains('pizza')) return Icons.local_pizza_outlined;
+    if (valor.contains('açaí') || valor.contains('doceria')) {
+      return Icons.icecream_outlined;
+    }
+    return Icons.restaurant_outlined;
   }
 }

@@ -1,0 +1,9 @@
+\babel@toc {portuguese}{}\relax 
+\contentsline {section}{\numberline {1}Estrutura do Banco de Dados (SQLite)}{2}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Script de Criação (Schema)}{2}{subsection.1.1}%
+\contentsline {section}{\numberline {2}Camada de Modelos (Models)}{3}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Modelo \texttt {Local}}{3}{subsection.2.1}%
+\contentsline {section}{\numberline {3}Camada de Acesso a Dados (DAOs)}{3}{section.3}%
+\contentsline {subsection}{\numberline {3.1}\texttt {LocalDao} (Métodos principais)}{3}{subsection.3.1}%
+\contentsline {section}{\numberline {4}Integrações e Funcionalidades Implementadas}{4}{section.4}%
+\contentsline {section}{\numberline {5}Persistência de Preferências (Shared Preferences)}{4}{section.5}%

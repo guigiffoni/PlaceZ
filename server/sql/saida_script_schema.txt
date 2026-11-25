@@ -1,0 +1,148 @@
+Table USUARIO criado.
+
+Decorrido: 00:00:00.102
+
+
+Table SESSAO criado.
+
+Decorrido: 00:00:00.018
+
+
+Index IX_SESSAO_USUARIO criado.
+
+Decorrido: 00:00:00.009
+
+
+Index IX_SESSAO_EXPIRA criado.
+
+Decorrido: 00:00:00.009
+
+
+Table AMIZADE criado.
+
+Decorrido: 00:00:00.024
+
+
+INDEX UQ_AMIZADE_PAR criado.
+
+Decorrido: 00:00:00.027
+
+
+Index IX_AMIZADE_DESTINATARIO_STATUS criado.
+
+Decorrido: 00:00:00.010
+
+
+Index IX_AMIZADE_SOLICITANTE criado.
+
+Decorrido: 00:00:00.010
+
+
+Table BLOQUEIO criado.
+
+Decorrido: 00:00:00.025
+
+
+Index IX_BLOQUEIO_BLOQUEADO criado.
+
+Decorrido: 00:00:00.014
+
+
+Table LOCAL criado.
+
+Decorrido: 00:00:00.020
+
+
+Table EVENTO criado.
+
+Decorrido: 00:00:00.033
+
+
+Index IX_EVENTO_CRIADOR_INICIO criado.
+
+Decorrido: 00:00:00.010
+
+
+Index IX_EVENTO_STATUS criado.
+
+Decorrido: 00:00:00.011
+
+
+Index IX_EVENTO_LOCAL criado.
+
+Decorrido: 00:00:00.009
+
+
+ORA-01401: valor inserido grande demais para a coluna
+Help: https://docs.oracle.com/error-help/db/ora-01401/
+
+
+ORA-00942: a tabela ou view  "ADMIN"."CONVIDADO_EVENTO" não existe
+Help: https://docs.oracle.com/error-help/db/ora-00942/
+
+
+ORA-00942: a tabela ou view  "ADMIN"."CONVIDADO_EVENTO" não existe
+Help: https://docs.oracle.com/error-help/db/ora-00942/
+
+
+ORA-00942: a tabela ou view  "ADMIN"."CONVIDADO_EVENTO" não existe
+Help: https://docs.oracle.com/error-help/db/ora-00942/
+
+
+Table ENQUETE_DISPONIBILIDADE criado.
+
+Decorrido: 00:00:00.039
+
+
+Table OPCAO_DISPONIBILIDADE criado.
+
+Decorrido: 00:00:00.027
+
+
+ORA-01408: esta lista de colunas já está indexada
+Help: https://docs.oracle.com/error-help/db/ora-01408/
+
+
+Table VOTO_DISPONIBILIDADE criado.
+
+Decorrido: 00:00:00.023
+
+
+Index IX_VOTO_OPCAO_STATUS criado.
+
+Decorrido: 00:00:00.011
+
+
+Table CONVERSA criado.
+
+Decorrido: 00:00:00.027
+
+
+INDEX UQ_CONVERSA_EVENTO criado.
+
+Decorrido: 00:00:00.010
+
+
+INDEX UQ_CONVERSA_DIRETA criado.
+
+Decorrido: 00:00:00.011
+
+
+Index IX_CONVERSA_USUARIO_A criado.
+
+Decorrido: 00:00:00.007
+
+
+Index IX_CONVERSA_USUARIO_B criado.
+
+Decorrido: 00:00:00.007
+
+
+Table MENSAGEM criado.
+
+Decorrido: 00:00:00.022
+
+
+Index IX_MENSAGEM_CONVERSA_ID criado.
+
+Decorrido: 00:00:00.009

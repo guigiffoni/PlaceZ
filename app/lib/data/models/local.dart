@@ -7,6 +7,8 @@ class Local {
   final double? nota;
   final double? latitude;
   final double? longitude;
+  final String? categoria;
+  final double? distanciaMetros;
 
   Local({
     this.id,
@@ -17,6 +19,8 @@ class Local {
     this.nota,
     this.latitude,
     this.longitude,
+    this.categoria,
+    this.distanciaMetros,
   });
 
   Map<String, dynamic> toMap() {
@@ -29,19 +33,75 @@ class Local {
       'nota': nota,
       'latitude': latitude,
       'longitude': longitude,
+      'categoria': categoria,
+      'distancia_metros': distanciaMetros,
     };
   }
 
   factory Local.fromMap(Map<String, dynamic> map) {
     return Local(
-      id: map['id'] as int?,
-      nome: map['nome'] as String?,
-      endereco: map['endereco'] as String?,
-      numero: map['numero'] as int?,
-      complemento: map['complemento'] as String?,
-      nota: map['nota'] as double?,
-      latitude: map['latitude'] as double,
-      longitude: map['longitude'] as double,
+      id: _comoInt(map['id']),
+      nome: _texto(map['nome']),
+      endereco: _texto(map['endereco']),
+      numero: _comoInt(map['numero']),
+      complemento: _texto(map['complemento']),
+      nota: _comoDouble(map['nota']),
+      latitude: _comoDouble(map['latitude']),
+      longitude: _comoDouble(map['longitude']),
+      categoria: _texto(map['categoria']),
+      distanciaMetros: _comoDouble(map['distancia_metros']),
     );
   }
+
+  /// Local vindo da API de eventos ou do catálogo mock (camelCase).
+  factory Local.fromJson(Map<String, dynamic> json) {
+    return Local(
+      id: _comoInt(json['id']),
+      nome: _texto(json['nome']),
+      endereco: _texto(json['endereco']),
+      numero: _comoInt(json['numero']),
+      complemento: _texto(json['complemento']),
+      nota: _comoDouble(json['nota']),
+      latitude: _comoDouble(json['latitude']),
+      longitude: _comoDouble(json['longitude']),
+      categoria: _texto(json['categoria']),
+      distanciaMetros: _comoDouble(
+        json['distanciaMetros'] ?? json['distancia_metros'],
+      ),
+    );
+  }
+
+  /// Snapshot enviado no corpo do evento. O id local não é enviado.
+  Map<String, dynamic> toJson() {
+    return {
+      'nome': nome,
+      'endereco': endereco,
+      'categoria': categoria,
+      'distanciaMetros': distanciaMetros,
+      'latitude': latitude,
+      'longitude': longitude,
+    };
+  }
+
+  String get rotulo => nome ?? 'Local sem nome';
+}
+
+String? _texto(dynamic valor) {
+  if (valor == null) return null;
+  final texto = valor.toString().trim();
+  return texto.isEmpty ? null : texto;
+}
+
+int? _comoInt(dynamic valor) {
+  if (valor == null) return null;
+  if (valor is int) return valor;
+  if (valor is num) return valor.toInt();
+  return int.tryParse(valor.toString());
+}
+
+double? _comoDouble(dynamic valor) {
+  if (valor == null) return null;
+  if (valor is double) return valor;
+  if (valor is num) return valor.toDouble();
+  return double.tryParse(valor.toString());
 }

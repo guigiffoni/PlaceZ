@@ -42,9 +42,9 @@ class TelaSobre extends StatelessWidget {
 
             SizedBox(height: 12),
             Text(
-              "Guilherme Amaral Giffoni\n"
-              "Pedro Henrique Ferreira\n"
-              "Rodrigo Fernandes Moraes",
+              "Fulano 1\n"
+              "Fulano 2\n"
+              "Fulano 3",
               style: TextStyle(
                 fontSize: 15,
                 height: 1.7,

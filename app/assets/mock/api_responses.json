@@ -1,0 +1,57 @@
+{
+  "GET /health": {
+    "status": "ok",
+    "db": "mock",
+    "mode": "mock",
+    "timestamp": "2026-11-07T12:00:00.000Z"
+  },
+  "GET /me": {
+    "id": 1,
+    "nome": "Usuário Mock",
+    "username": "mock"
+  },
+  "POST /auth/registro": {
+    "__status": 201,
+    "__body": {
+      "token": "mock-token",
+      "expiraEm": "2026-12-07T12:00:00.000Z",
+      "usuario": {
+        "id": 1,
+        "nome": "Usuário Mock",
+        "username": "mock"
+      }
+    }
+  },
+  "POST /auth/login": {
+    "token": "mock-token",
+    "expiraEm": "2026-12-07T12:00:00.000Z",
+    "usuario": {
+      "id": 1,
+      "nome": "Usuário Mock",
+      "username": "mock"
+    }
+  },
+  "POST /auth/logout": {
+    "__status": 204,
+    "__body": null
+  },
+  "GET /usuarios/busca": {
+    "usuarios": []
+  },
+  "GET /amigos": {
+    "amigos": []
+  },
+  "GET /amigos/solicitacoes": {
+    "recebidas": [],
+    "enviadas": []
+  },
+  "GET /bloqueios": {
+    "bloqueios": []
+  },
+  "GET /eventos": {
+    "eventos": []
+  },
+  "GET /calendario/pessoas-frequentes": [],
+  "GET /conversas": [],
+  "GET /conversas/:id/mensagens": []
+}

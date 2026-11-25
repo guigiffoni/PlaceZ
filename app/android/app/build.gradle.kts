@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.app"
+    namespace = "br.pucminas.placez"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -15,8 +15,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.app"
+        // Identidade definitiva do app (necessária para o FCM na Fase 8).
+        applicationId = "br.pucminas.placez"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 30

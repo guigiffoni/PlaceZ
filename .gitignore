@@ -1,0 +1,5 @@
+# Backend PlaceZ
+server/node_modules/
+server/.env
+server/*.log
+npm-debug.log*

@@ -1,0 +1,22 @@
+{
+  "name": "placez-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Esqueleto da API REST do PlaceZ",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "check": "node --check src/index.js && node --check src/config.js && node --check src/db.js && node --check src/security.js && node --check src/routes/auth.js && node --check src/routes/friends.js && node --check src/routes/events.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "oracledb": "^6.9.0"
+  }
+}
