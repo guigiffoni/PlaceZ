@@ -133,6 +133,8 @@ class MockBackend {
         return _listarEventos(token, query);
       case 'POST /eventos':
         return _criarEvento(token, corpo);
+      case 'GET /calendario/pessoas-frequentes':
+        return _rankingPessoas(token);
     }
 
     final convidaTodos = RegExp(r'^/eventos/(\d+)/convidados/todos$')
@@ -658,6 +660,7 @@ class MockBackend {
     final erros = <Map<String, String>>[];
     final de = _lerDataMock(query?['de'], 'de', erros);
     final ate = _lerDataMock(query?['ate'], 'ate', erros);
+    final pessoas = _lerPessoasMock(query?['pessoas'], erros);
     if (de != null && ate != null && ate.isBefore(de)) {
       erros.add({
         'campo': 'ate',
@@ -679,6 +682,11 @@ class MockBackend {
       final inicio = _dataDoEvento(evento['inicioEm']);
       if (de != null && (inicio == null || inicio.isBefore(de))) continue;
       if (ate != null && (inicio == null || inicio.isAfter(ate))) continue;
+      if (pessoas.isNotEmpty) {
+        final atende = _convidadosDoEvento(evento['id'] as int)
+            .any((convidado) => pessoas.contains(convidado['usuarioId']));
+        if (!atende) continue;
+      }
       encontrados.add(evento);
     }
 
@@ -698,6 +706,59 @@ class MockBackend {
     return MockResponse(200, {
       'eventos': encontrados.map((e) => _eventoJson(e, meuId)).toList(),
     });
+  }
+
+  MockResponse _rankingPessoas(String? token) {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final limite = DateTime.now().toUtc().subtract(const Duration(days: 30));
+    final contagem = <int, int>{};
+
+    for (final item in _eventos) {
+      final evento = Map<String, dynamic>.from(item as Map);
+      if (evento['status'] == 'CANCELADO') continue;
+
+      for (final convidado in _convidadosDoEvento(evento['id'] as int)) {
+        if (convidado['convidadoPor'] != meuId) continue;
+        if (convidado['papel'] != 'CONVIDADO') continue;
+
+        final alvoId = convidado['usuarioId'] as int;
+        if (alvoId == meuId) continue;
+
+        final amizade = _amizadeDoPar(meuId, alvoId);
+        if (amizade == null || amizade['status'] != 'A') continue;
+
+        final criadoEm = DateTime.tryParse(
+          (convidado['criadoEm'] ?? '').toString(),
+        );
+        if (criadoEm == null || criadoEm.toUtc().isBefore(limite)) continue;
+
+        contagem.update(alvoId, (valor) => valor + 1, ifAbsent: () => 1);
+      }
+    }
+
+    final pessoas = contagem.entries.map((entrada) {
+      final usuario = _usuarioPorId(entrada.key);
+      return {
+        'usuarioId': entrada.key,
+        'nome': usuario == null ? 'Usuário' : usuario['nome'],
+        'contagem': entrada.value,
+      };
+    }).toList();
+
+    pessoas.sort((a, b) {
+      final porContagem = (b['contagem'] as int).compareTo(
+        a['contagem'] as int,
+      );
+      if (porContagem != 0) return porContagem;
+      return (a['nome'] as String).toLowerCase().compareTo(
+        (b['nome'] as String).toLowerCase(),
+      );
+    });
+
+    return MockResponse(200, {'pessoas': pessoas});
   }
 
   Future<MockResponse> _criarEvento(
@@ -1322,6 +1383,32 @@ class MockBackend {
     if (valor is bool) return valor;
     erros.add({'campo': campo, 'mensagem': 'Informe verdadeiro ou falso.'});
     return padrao;
+  }
+
+  List<int> _lerPessoasMock(dynamic valor, List<Map<String, String>> erros) {
+    if (valor == null || valor.toString().trim().isEmpty) return <int>[];
+
+    final ids = <int>[];
+    for (final parte in valor.toString().split(',')) {
+      final texto = parte.trim();
+      if (texto.isEmpty) continue;
+      final id = _comoInt(texto);
+      if (id == null || id <= 0) {
+        erros.add({
+          'campo': 'pessoas',
+          'mensagem': 'Informe uma lista de usuários válidos.',
+        });
+        continue;
+      }
+      if (!ids.contains(id)) ids.add(id);
+    }
+    if (ids.length > 50) {
+      erros.add({
+        'campo': 'pessoas',
+        'mensagem': 'Selecione no máximo 50 pessoas por vez.',
+      });
+    }
+    return ids;
   }
 
   List<int> _lerConvidadoIdsMock(

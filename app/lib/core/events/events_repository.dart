@@ -1,5 +1,6 @@
 import '../../data/models/evento.dart';
 import '../../data/models/local.dart';
+import '../../data/models/ranking_pessoa.dart';
 import '../network/api_client.dart';
 import '../network/api_exception.dart';
 
@@ -61,12 +62,17 @@ class EventsRepository {
     );
   }
 
-  Future<List<Evento>> listar({DateTime? de, DateTime? ate}) async {
+  Future<List<Evento>> listar({
+    DateTime? de,
+    DateTime? ate,
+    List<int> pessoas = const [],
+  }) async {
     final client = await _criarCliente();
     try {
       final query = <String, String>{};
       if (de != null) query['de'] = de.toUtc().toIso8601String();
       if (ate != null) query['ate'] = ate.toUtc().toIso8601String();
+      if (pessoas.isNotEmpty) query['pessoas'] = pessoas.join(',');
 
       final resposta = await client.get(
         '/eventos',
@@ -74,6 +80,28 @@ class EventsRepository {
       );
       final mapa = _comoMapa(resposta);
       return _converteLista(mapa['eventos'], Evento.fromJson);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<List<PessoaRanking>> rankingPessoas() async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.get('/calendario/pessoas-frequentes');
+      final mapa = _comoMapa(resposta);
+      final pessoas = mapa['pessoas'];
+      if (pessoas is! List) return const [];
+      try {
+        return pessoas
+            .whereType<Map>()
+            .map(
+              (item) => PessoaRanking.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .toList();
+      } on FormatException catch (erro) {
+        throw ApiException(code: 'RESPOSTA_INVALIDA', message: erro.message);
+      }
     } finally {
       client.close();
     }

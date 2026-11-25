@@ -173,6 +173,12 @@ class _BarraNavegacaoState extends State<BarraNavegacao> {
 
     if (!mounted) return;
     setState(() => _currentPageIndex = indice);
+
+    // Ao voltar para o calendário, atualiza eventos e ranking sem exigir
+    // reinício do app (inclusive após criar/editar um evento).
+    if (indice == 0 && widget.authController.autenticado) {
+      _eventsController.atualizarCalendario();
+    }
   }
 
   @override

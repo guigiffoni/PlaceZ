@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 
 import '../../data/dao/evento_dao.dart';
+import '../../data/dao/ranking_pessoas_dao.dart';
 import '../../data/models/evento.dart';
+import '../../data/models/ranking_pessoa.dart';
 import '../auth/auth_controller.dart';
 import '../network/api_exception.dart';
 import 'events_repository.dart';
@@ -10,6 +12,7 @@ class EventsController extends ChangeNotifier {
   final AuthController auth;
   final EventsRepository _repositorio;
   final EventoDao _cache;
+  final RankingPessoasDao _rankingCache;
 
   bool _carregando = false;
   bool _detalhando = false;
@@ -19,18 +22,22 @@ class EventsController extends ChangeNotifier {
 
   String? _erro;
   List<Evento> _eventos = [];
+  List<PessoaRanking> _ranking = const [];
+  final Set<int> _pessoasSelecionadas = <int>{};
 
   EventsController({
     required this.auth,
     EventsRepository? repositorio,
     EventoDao? cache,
+    RankingPessoasDao? rankingCache,
   }) : _repositorio =
            repositorio ??
            EventsRepository(
              tokenProvider: () async => auth.sessao?.token,
              onUnauthorized: auth.tratarNaoAutorizado,
            ),
-       _cache = cache ?? EventoDao() {
+       _cache = cache ?? EventoDao(),
+       _rankingCache = rankingCache ?? RankingPessoasDao() {
     _autenticadoAnterior = auth.autenticado;
     auth.addListener(_aoMudarAutenticacao);
     if (auth.autenticado) {
@@ -44,6 +51,9 @@ class EventsController extends ChangeNotifier {
   bool get mostrandoCache => _mostrandoCache;
   String? get erro => _erro;
   List<Evento> get eventos => List.unmodifiable(_eventos);
+  List<PessoaRanking> get ranking => List.unmodifiable(_ranking);
+  Set<int> get pessoasSelecionadas => Set.unmodifiable(_pessoasSelecionadas);
+  bool get temFiltroPessoas => _pessoasSelecionadas.isNotEmpty;
   int? get meuUsuarioId => auth.usuario?.id;
 
   @override
@@ -65,7 +75,10 @@ class EventsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> carregar({bool silencioso = false}) async {
+  Future<void> carregar({
+    bool silencioso = false,
+    bool incluirRanking = true,
+  }) async {
     if (!auth.autenticado) {
       _limparDados();
       return;
@@ -76,12 +89,20 @@ class EventsController extends ChangeNotifier {
       notifyListeners();
     }
 
+    if (incluirRanking) {
+      await _carregarRanking();
+    }
+
     try {
-      _eventos = await _repositorio.listar();
+      _eventos = await _repositorio.listar(
+        pessoas: _pessoasSelecionadas.toList(),
+      );
       _ordenar();
       _erro = null;
       _mostrandoCache = false;
-      await _salvarListaNoCache();
+      if (_pessoasSelecionadas.isEmpty) {
+        await _salvarListaNoCache();
+      }
     } on ApiException catch (erro) {
       if (!auth.autenticado) return;
       _erro = _mensagemDoErro(erro);
@@ -93,6 +114,29 @@ class EventsController extends ChangeNotifier {
       _carregando = false;
       notifyListeners();
     }
+  }
+
+  /// Aplica ou remove uma pessoa do filtro do calendário.
+  Future<void> alternarPessoa(int usuarioId) async {
+    if (!auth.autenticado) return;
+
+    if (!_pessoasSelecionadas.remove(usuarioId)) {
+      _pessoasSelecionadas.add(usuarioId);
+    }
+    notifyListeners();
+    await carregar(silencioso: true, incluirRanking: false);
+  }
+
+  Future<void> limparFiltroPessoas() async {
+    if (_pessoasSelecionadas.isEmpty) return;
+    _pessoasSelecionadas.clear();
+    notifyListeners();
+    await carregar(silencioso: true, incluirRanking: false);
+  }
+
+  /// Recarrega tudo ao voltar para a aba do calendário.
+  Future<void> atualizarCalendario() {
+    return carregar(silencioso: true);
   }
 
   Future<Evento?> detalhar(int id, {bool silencioso = false}) async {
@@ -126,48 +170,72 @@ class EventsController extends ChangeNotifier {
     EventoEntrada entrada, {
     List<int> convidadoIds = const [],
   }) {
-    return _executar(() async {
-      final evento = await _repositorio.criar(
-        entrada,
-        convidadoIds: convidadoIds,
-      );
-      await _aplicarEvento(evento);
-    });
+    return _executar(
+      () async {
+        final evento = await _repositorio.criar(
+          entrada,
+          convidadoIds: convidadoIds,
+        );
+        await _aplicarEvento(evento);
+      },
+      recarregar: true,
+      atualizarRanking: true,
+    );
   }
 
   Future<String?> editar(int id, EventoEntrada entrada) {
     return _executar(() async {
       final evento = await _repositorio.atualizar(id, entrada);
       await _aplicarEvento(evento);
-    });
+    }, recarregar: true);
   }
 
   Future<String?> cancelar(int id) {
-    return _executar(() async {
-      await _repositorio.cancelar(id);
-      _eventos.removeWhere((evento) => evento.id == id);
-      await _salvarListaNoCache();
-    });
+    return _executar(
+      () async {
+        await _repositorio.cancelar(id);
+        _eventos.removeWhere((evento) => evento.id == id);
+        if (_pessoasSelecionadas.isEmpty) {
+          await _salvarListaNoCache();
+        }
+      },
+      recarregar: true,
+      atualizarRanking: true,
+    );
   }
 
   Future<String?> convidar(int id, List<int> usuarioIds) {
-    return _executarComEvento(() => _repositorio.convidar(id, usuarioIds));
+    return _executarComEvento(
+      () => _repositorio.convidar(id, usuarioIds),
+      recarregar: true,
+      atualizarRanking: true,
+    );
   }
 
   Future<String?> convidarTodos(int id) {
-    return _executarComEvento(() => _repositorio.convidarTodos(id));
+    return _executarComEvento(
+      () => _repositorio.convidarTodos(id),
+      recarregar: true,
+      atualizarRanking: true,
+    );
   }
 
   Future<String?> removerConvidado(int id, int usuarioId) {
-    return _executar(() async {
-      final evento = await _repositorio.removerConvidado(id, usuarioId);
-      if (evento == null) {
-        _eventos.removeWhere((item) => item.id == id);
-        await _salvarListaNoCache();
-      } else {
-        await _aplicarEvento(evento);
-      }
-    });
+    return _executar(
+      () async {
+        final evento = await _repositorio.removerConvidado(id, usuarioId);
+        if (evento == null) {
+          _eventos.removeWhere((item) => item.id == id);
+          if (_pessoasSelecionadas.isEmpty) {
+            await _salvarListaNoCache();
+          }
+        } else {
+          await _aplicarEvento(evento);
+        }
+      },
+      recarregar: true,
+      atualizarRanking: true,
+    );
   }
 
   Future<String?> responderRsvp(int id, RsvpStatus rsvp) {
@@ -188,14 +256,26 @@ class EventsController extends ChangeNotifier {
     );
   }
 
-  Future<String?> _executarComEvento(Future<Evento> Function() acao) {
-    return _executar(() async {
-      final evento = await acao();
-      await _aplicarEvento(evento);
-    });
+  Future<String?> _executarComEvento(
+    Future<Evento> Function() acao, {
+    bool recarregar = false,
+    bool atualizarRanking = false,
+  }) {
+    return _executar(
+      () async {
+        final evento = await acao();
+        await _aplicarEvento(evento);
+      },
+      recarregar: recarregar,
+      atualizarRanking: atualizarRanking,
+    );
   }
 
-  Future<String?> _executar(Future<void> Function() acao) async {
+  Future<String?> _executar(
+    Future<void> Function() acao, {
+    bool recarregar = false,
+    bool atualizarRanking = false,
+  }) async {
     if (_acaoEmAndamento) return null;
 
     _acaoEmAndamento = true;
@@ -204,6 +284,12 @@ class EventsController extends ChangeNotifier {
 
     try {
       await acao();
+      if (recarregar) {
+        await carregar(silencioso: true, incluirRanking: atualizarRanking);
+      } else if (atualizarRanking) {
+        await _carregarRanking();
+        notifyListeners();
+      }
       return null;
     } on ApiException catch (erro) {
       _erro = _mensagemDoErro(erro);
@@ -268,15 +354,48 @@ class EventsController extends ChangeNotifier {
     }
   }
 
+  Future<void> _carregarRanking() async {
+    try {
+      final ranking = await _repositorio.rankingPessoas();
+      _ranking = ranking;
+      _podarSelecao();
+      await _rankingCache.salvar(ranking);
+    } catch (_) {
+      try {
+        final ranking = await _rankingCache.carregar();
+        if (ranking.isNotEmpty) {
+          _ranking = ranking;
+          _podarSelecao();
+        }
+      } catch (_) {
+        // O ranking é opcional; sem ele o calendário continua funcionando.
+      }
+    }
+  }
+
+  void _podarSelecao() {
+    final ids = _ranking.map((pessoa) => pessoa.usuarioId).toSet();
+    _pessoasSelecionadas.removeWhere((id) => !ids.contains(id));
+  }
+
   Future<void> _carregarCache() async {
     try {
       final eventos = await _cache.carregarEventos(usuarioId: meuUsuarioId);
       if (eventos.isEmpty) return;
-      _eventos = eventos;
+      _eventos = _filtrarPorPessoas(eventos);
       _mostrandoCache = true;
     } catch (_) {
       // Sem cache, a UI mostra somente o erro.
     }
+  }
+
+  List<Evento> _filtrarPorPessoas(List<Evento> eventos) {
+    if (_pessoasSelecionadas.isEmpty) return eventos;
+    return eventos.where((evento) {
+      return evento.convidados.any(
+        (convidado) => _pessoasSelecionadas.contains(convidado.usuario.id),
+      );
+    }).toList();
   }
 
   void _aoMudarAutenticacao() {
@@ -294,10 +413,15 @@ class EventsController extends ChangeNotifier {
     _cache.limpar().catchError((_) {
       // Falha de limpeza não bloqueia o logout.
     });
+    _rankingCache.limpar().catchError((_) {
+      // Falha de limpeza não bloqueia o logout.
+    });
   }
 
   void _limparDados() {
     _eventos = [];
+    _ranking = const [];
+    _pessoasSelecionadas.clear();
     _erro = null;
     _carregando = false;
     _detalhando = false;

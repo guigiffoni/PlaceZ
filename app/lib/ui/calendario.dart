@@ -98,6 +98,49 @@ class _TelaCalendarioState extends State<TelaCalendario> {
     );
   }
 
+  Widget _filtroPessoas(ThemeData theme) {
+    final selecionadas = _controller.pessoasSelecionadas;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Row(
+        children: [
+          Icon(
+            Icons.people_outline,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final pessoa in _controller.ranking) ...[
+                    FilterChip(
+                      label: Text('${pessoa.nome} · ${pessoa.contagem}'),
+                      selected: selecionadas.contains(pessoa.usuarioId),
+                      showCheckmark: false,
+                      onSelected: (_) =>
+                          _controller.alternarPessoa(pessoa.usuarioId),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  if (selecionadas.isNotEmpty)
+                    ActionChip(
+                      avatar: const Icon(Icons.close, size: 16),
+                      label: const Text('Limpar'),
+                      onPressed: _controller.limparFiltroPessoas,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -118,6 +161,8 @@ class _TelaCalendarioState extends State<TelaCalendario> {
           ),
         if (!_controller.auth.autenticado)
           const _Aviso(mensagem: 'Entre para ver os eventos dos seus amigos.'),
+        if (_controller.auth.autenticado && _controller.ranking.isNotEmpty)
+          _filtroPessoas(theme),
         TableCalendar<Evento>(
           firstDay: DateTime.utc(2020, 1, 1),
           lastDay: DateTime.utc(2030, 12, 31),

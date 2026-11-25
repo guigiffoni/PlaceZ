@@ -100,6 +100,7 @@ class EventoDao {
       await txn.delete('cache_convidado');
       await txn.delete('cache_evento');
       await txn.delete('cache_local');
+      await txn.delete('cache_ranking_pessoas');
     });
   }
 

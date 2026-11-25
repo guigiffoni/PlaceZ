@@ -317,11 +317,14 @@ No detalhe (`GET /eventos/:id`), `convidados` vem preenchido:
 ]
 ```
 
-### `GET /eventos?de=&ate=`
+### `GET /eventos?de=&ate=&pessoas=`
 
 Lista os eventos visíveis ao usuário, exceto cancelados, ordenados por início
-crescente. `de` e `ate` são opcionais e usam ISO-8601. O filtro `pessoas` será
-implementado na Fase 4.
+crescente. `de` e `ate` são opcionais e usam ISO-8601.
+
+`pessoas` é uma lista de IDs separada por vírgulas (ou repetida na query).
+Quando presente, retorna os eventos em que **qualquer** pessoa selecionada é
+convidada (união). O filtro nunca amplia a visibilidade do usuário.
 
 ```json
 { "eventos": [ { "id": 1, "titulo": "..." } ] }
@@ -443,6 +446,31 @@ Somente o criador. Aceita um ou ambos:
 Resposta `200` com `{ "evento": { ... } }`. O criador pode alterar essa
 permissão a qualquer momento.
 
+## Calendário (Fase 4)
+
+### `GET /calendario/pessoas-frequentes`
+
+Privado. Retorna os amigos confirmados que o usuário logado convidou nos
+últimos 30 dias, ordenados por quantidade de eventos distintos (decrescente) e,
+em empate, por nome (crescente).
+
+```json
+{
+  "pessoas": [
+    { "usuarioId": 2, "nome": "Bruno Lima", "contagem": 3 },
+    { "usuarioId": 3, "nome": "Ana Souza", "contagem": 2 }
+  ]
+}
+```
+
+Regras:
+
+- Conta apenas convites feitos pelo usuário logado (`convidado_por`).
+- O convidado precisa ser amigo confirmado no momento da consulta.
+- Eventos cancelados não entram na contagem.
+- A contagem é por evento distinto, não por convite duplicado.
+- Eventos em que o usuário é apenas convidado não entram.
+
 ## Previsto para as próximas fases
 
 Os contratos abaixo serão implementados nas fases correspondentes; ainda não
@@ -463,14 +491,6 @@ existem endpoints funcionais para eles.
 - `POST /eventos/:id/chat`
 - `GET /conversas/:id/mensagens?afterId=`
 - `POST /conversas/:id/mensagens` `{ "texto": "..." }`
-
-### Calendário
-
-- `GET /calendario/pessoas-frequentes` — lista ordenada:
-  `[{ "usuarioId": 2, "nome": "Bruno", "contagem": 3 }]`
-
-A resposta deve vir ordenada por `contagem` decrescente e, em empate, por
-`nome` crescente.
 
 ## Mock do app
 

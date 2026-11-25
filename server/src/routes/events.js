@@ -211,6 +211,35 @@ function lerConvidados(valor, erros) {
   return ids;
 }
 
+function lerPessoas(valor, erros) {
+  if (valor === undefined || valor === null || valor === '') return [];
+
+  const entradas = Array.isArray(valor) ? valor : [valor];
+  const ids = [];
+  for (const entrada of entradas) {
+    for (const parte of String(entrada).split(',')) {
+      const texto = parte.trim();
+      if (!texto) continue;
+      const id = Number(texto);
+      if (!Number.isInteger(id) || id <= 0) {
+        erros.push({
+          campo: 'pessoas',
+          mensagem: 'Informe uma lista de usuários válidos.',
+        });
+        continue;
+      }
+      if (!ids.includes(id)) ids.push(id);
+    }
+  }
+  if (ids.length > 50) {
+    erros.push({
+      campo: 'pessoas',
+      mensagem: 'Selecione no máximo 50 pessoas por vez.',
+    });
+  }
+  return ids;
+}
+
 function localDaLinha(linha) {
   if (!linha.LOCAL_ID) return null;
   return {
@@ -490,6 +519,7 @@ router.get('/eventos', async (req, res) => {
   const erros = [];
   const de = lerData(req.query.de, 'de', erros);
   const ate = lerData(req.query.ate, 'ate', erros);
+  const pessoas = lerPessoas(req.query.pessoas, erros);
 
   if (de && ate && de > ate) {
     erros.push({ campo: 'ate', mensagem: 'A data final deve ser após a inicial.' });
@@ -506,6 +536,17 @@ router.get('/eventos', async (req, res) => {
     if (ate) {
       filtros += ' AND e.inicio_em <= :ate';
       binds.ate = ate;
+    }
+    if (pessoas.length > 0) {
+      const marcadores = pessoas.map((_, indice) => `:pessoa${indice}`);
+      filtros += ` AND EXISTS (
+        SELECT 1 FROM convidado_evento cp
+         WHERE cp.evento_id = e.id
+           AND cp.usuario_id IN (${marcadores.join(', ')})
+      )`;
+      pessoas.forEach((id, indice) => {
+        binds[`pessoa${indice}`] = id;
+      });
     }
 
     const resultado = await db.executar(
@@ -526,6 +567,44 @@ router.get('/eventos', async (req, res) => {
     return res.status(200).json({ eventos });
   } catch (erro) {
     return tratarErro(res, erro, 'lista de eventos');
+  }
+});
+
+// GET /calendario/pessoas-frequentes
+router.get('/calendario/pessoas-frequentes', autenticar, async (req, res) => {
+  const eu = req.usuario.ID;
+
+  try {
+    const resultado = await db.executar(
+      `SELECT u.id AS usuario_id,
+              u.nome,
+              COUNT(DISTINCT c.evento_id) AS contagem
+         FROM convidado_evento c
+         JOIN evento e ON e.id = c.evento_id
+         JOIN usuario u ON u.id = c.usuario_id
+         JOIN amizade a
+           ON a.status = 'A'
+          AND ((a.solicitante_id = :eu AND a.destinatario_id = c.usuario_id)
+            OR (a.destinatario_id = :eu AND a.solicitante_id = c.usuario_id))
+        WHERE c.convidado_por = :eu
+          AND c.papel = 'CONVIDADO'
+          AND c.usuario_id <> :eu
+          AND e.status <> 'CANCELADO'
+          AND c.criado_em >= SYS_EXTRACT_UTC(SYSTIMESTAMP) - INTERVAL '30' DAY
+        GROUP BY u.id, u.nome
+        ORDER BY contagem DESC, u.nome ASC`,
+      { eu },
+    );
+
+    const pessoas = (resultado.rows || []).map((linha) => ({
+      usuarioId: linha.USUARIO_ID,
+      nome: linha.NOME,
+      contagem: Number(linha.CONTAGEM),
+    }));
+
+    return res.status(200).json({ pessoas });
+  } catch (erro) {
+    return tratarErro(res, erro, 'ranking de pessoas do calendário');
   }
 });
 
