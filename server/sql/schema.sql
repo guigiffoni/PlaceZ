@@ -145,6 +145,7 @@ CREATE TABLE enquete_disponibilidade (
   dias_semana   VARCHAR2(20) NOT NULL,
   hora_inicio   VARCHAR2(5) NOT NULL,
   hora_fim      VARCHAR2(5) NOT NULL,
+  fuso_offset_minutos NUMBER(4) DEFAULT 0 NOT NULL,
   criado_em     TIMESTAMP DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) NOT NULL,
   CONSTRAINT uq_enquete_evento UNIQUE (evento_id),
   CONSTRAINT fk_enquete_evento FOREIGN KEY (evento_id)

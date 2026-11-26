@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "check": "node --check src/index.js && node --check src/config.js && node --check src/db.js && node --check src/security.js && node --check src/routes/auth.js && node --check src/routes/friends.js && node --check src/routes/events.js"
+    "check": "node --check src/index.js && node --check src/config.js && node --check src/db.js && node --check src/security.js && node --check src/routes/auth.js && node --check src/routes/friends.js && node --check src/routes/events.js && node --check src/routes/chat.js"
   },
   "engines": {
     "node": ">=20"

@@ -9,6 +9,7 @@ const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
 const friendsRoutes = require('./routes/friends');
 const eventsRoutes = require('./routes/events');
+const chatRoutes = require('./routes/chat');
 const { responderErro } = require('./http');
 
 const app = express();
@@ -20,6 +21,7 @@ app.use(express.json({ limit: '100kb' }));
 app.use('/api/v1', healthRoutes);
 app.use('/api/v1', authRoutes);
 app.use('/api/v1', friendsRoutes);
+app.use('/api/v1', chatRoutes);
 app.use('/api/v1', eventsRoutes);
 
 app.use((req, res) => {

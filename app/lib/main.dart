@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'core/auth/auth_controller.dart';
 import 'core/events/events_controller.dart';
+import 'core/notificacoes/notificacao_service.dart';
 import 'ui/calendario.dart';
 import 'ui/pesquisa.dart';
 import 'ui/telas/cadastro.dart';
@@ -21,13 +22,23 @@ void main() async {
   final authController = AuthController();
   await authController.inicializar();
 
-  runApp(MainApp(authController: authController));
+  // Fase 8 em modo no-op. A factory pode ser trocada por uma implementação
+  // FCM sem alterar as telas.
+  final notificacoes = criarNotificacaoService();
+  await notificacoes.inicializar();
+
+  runApp(MainApp(authController: authController, notificacoes: notificacoes));
 }
 
 class MainApp extends StatefulWidget {
   final AuthController authController;
+  final NotificacaoService notificacoes;
 
-  const MainApp({super.key, required this.authController});
+  const MainApp({
+    super.key,
+    required this.authController,
+    required this.notificacoes,
+  });
 
   @override
   State<MainApp> createState() => _MainAppState();
@@ -126,7 +137,7 @@ class _BarraNavegacaoState extends State<BarraNavegacao> {
     _eventsController = EventsController(auth: widget.authController);
     _widgetOptions = [
       TelaCalendario(eventsController: _eventsController),
-      const TelaChat(),
+      TelaChat(authController: widget.authController),
       TelaCadastroEvento(eventsController: _eventsController),
       const TelaPesquisa(),
       TelaAmigos(authController: widget.authController),

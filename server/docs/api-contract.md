@@ -42,9 +42,18 @@ Códigos usados nesta fase:
 | 404 | `EVENTO_NAO_ENCONTRADO` | Evento inexistente ou não visível ao usuário. |
 | 403 | `SEM_PERMISSAO` | Ação de evento restrita ao criador ou a quem pode convidar. |
 | 409 | `EVENTO_CANCELADO` | Evento cancelado não aceita convites nem RSVP. |
+| 409 | `EVENTO_NAO_CONFIRMADO` | RSVP em evento que ainda está em rascunho. |
 | 404 | `CONVIDADO_NAO_ENCONTRADO` | Usuário não está na lista de convidados. |
 | 400 | `NAO_REMOVER_CRIADOR` | Tentativa de remover o criador do evento. |
 | 400 | `CRIADOR_RSVP_FIXO` | Criador tentou responder algo diferente de `VOU`. |
+| 404 | `ENQUETE_NAO_ENCONTRADA` | O evento não tem combinação de dias. |
+| 409 | `ENQUETE_EXISTENTE` | O evento já tem combinação de dias. |
+| 409 | `EVENTO_NAO_ESTA_EM_RASCUNHO` | Combinação/voto em evento já confirmado ou cancelado. |
+| 409 | `SEM_DISPONIBILIDADE` | Nenhum participante marcou disponibilidade na melhor data. |
+| 404 | `CONVERSA_NAO_ENCONTRADA` | Conversa inexistente ou não visível ao usuário. |
+| 409 | `CONVERSA_BLOQUEADA` | Há bloqueio entre os participantes da conversa. |
+| 409 | `CONVERSA_NAO_PERMITIDA` | A conversa direta exige amizade confirmada. |
+| 404 | `CHAT_NAO_ENCONTRADO` | O evento ainda não tem chat. |
 | 503 | `BANCO_INDISPONIVEL` | Oracle não configurado ou indisponível. |
 | 503 | `AUTENTICACAO_INDISPONIVEL` | Dependência bcryptjs ausente. |
 | 500 | `ERRO_INTERNO` | Erro inesperado. |
@@ -319,8 +328,9 @@ No detalhe (`GET /eventos/:id`), `convidados` vem preenchido:
 
 ### `GET /eventos?de=&ate=&pessoas=`
 
-Lista os eventos visíveis ao usuário, exceto cancelados, ordenados por início
-crescente. `de` e `ate` são opcionais e usam ISO-8601.
+Lista os eventos confirmados e visíveis ao usuário, ordenados por início
+crescente. Cancelados e rascunhos não aparecem. `de` e `ate` são opcionais e
+usam ISO-8601.
 
 `pessoas` é uma lista de IDs separada por vírgulas (ou repetida na query).
 Quando presente, retorna os eventos em que **qualquer** pessoa selecionada é
@@ -328,6 +338,16 @@ convidada (união). O filtro nunca amplia a visibilidade do usuário.
 
 ```json
 { "eventos": [ { "id": 1, "titulo": "..." } ] }
+```
+
+### `GET /eventos/rascunhos`
+
+Lista os rascunhos visíveis ao usuário (criador ou convidado), do mais recente
+para o mais antigo. Rascunhos não aparecem no calendário até serem
+confirmados; esta rota alimenta a seção “Combinações pendentes”.
+
+```json
+{ "eventos": [ { "id": 7, "titulo": "...", "status": "RASCUNHO" } ] }
 ```
 
 ### `POST /eventos`
@@ -348,7 +368,8 @@ convidada (união). O filtro nunca amplia a visibilidade do usuário.
   },
   "privado": true,
   "permitirMembrosConvidar": false,
-  "convidadoIds": [3]
+  "convidadoIds": [3],
+  "rascunho": false
 }
 ```
 
@@ -365,8 +386,11 @@ Resposta `201`:
 Regras:
 
 - `titulo` é obrigatório (1 a 160 caracteres); `descricao` aceita até 2000.
-- `inicioEm`/`fimEm` são opcionais e, quando ambos existem, o fim deve ser
-  posterior ao início.
+- Evento confirmado exige `inicioEm`; `fimEm` é opcional e, quando ambos
+  existem, o fim deve ser posterior ao início.
+- `rascunho: true` cria o evento com `status = RASCUNHO` e sem datas. O
+  rascunho não aparece no calendário; a data é definida pela combinação de
+  dias (Fase 5).
 - `local` é um snapshot do catálogo mock ou do mapa/Nominatim. O backend cria
   o registro em `local` e associa ao evento.
 - `privado` é `true` por padrão; `permitirMembrosConvidar` é `false`.
@@ -471,31 +495,220 @@ Regras:
 - A contagem é por evento distinto, não por convite duplicado.
 - Eventos em que o usuário é apenas convidado não entram.
 
+## Combinação de dias (Fase 5)
+
+### `POST /eventos/:id/enquete`
+
+Somente o criador, com o evento em `RASCUNHO` e sem enquete anterior.
+
+```json
+{
+  "dataInicio": "2026-11-26",
+  "dataFim": "2026-12-10",
+  "diasSemana": [6, 7],
+  "horaInicio": "19:00",
+  "horaFim": "22:00",
+  "fusoOffsetMinutos": -180
+}
+```
+
+Regras:
+
+- `dataInicio`/`dataFim` usam `AAAA-MM-DD`; o intervalo pode ter até 60 dias.
+- `diasSemana`: 1 = segunda … 7 = domingo; ao menos um dia.
+- `horaFim` deve ser posterior a `horaInicio`.
+- O backend gera uma opção para cada data do intervalo que caia nos dias
+  escolhidos.
+- `fusoOffsetMinutos` é o deslocamento local do criador em relação a UTC
+  (ex.: `-180` para UTC-3). Ele é usado ao aplicar a melhor data no evento.
+
+Resposta `201` com `{ "enquete": { ... }, "melhorDia": { ... } }`.
+
+Cada opção tem o formato:
+
+```json
+{
+  "id": 10,
+  "data": "2026-11-28",
+  "horaInicio": "19:00",
+  "horaFim": "22:00",
+  "disponiveis": 1,
+  "indisponiveis": 1,
+  "totalVotos": 2,
+  "percentual": 50,
+  "meuVoto": "DISPONIVEL"
+}
+```
+
+`percentual` é a proporção de `disponiveis` sobre `totalVotos`.
+
+### `GET /eventos/:id/enquete`
+
+Disponível para o criador e para os convidados. Resposta `200` com
+`{ "enquete": { ... }, "melhorDia": { ... } }` ou
+`404 ENQUETE_NAO_ENCONTRADA`.
+
+### `PUT /eventos/:id/enquete/votos`
+
+```json
+{ "votos": [{ "opcaoId": 10, "status": "DISPONIVEL" }] }
+```
+
+- Disponível para o criador e para os convidados, enquanto o evento está em
+  `RASCUNHO`.
+- Votar novamente na mesma opção atualiza o voto (não duplica).
+- Opção de outro evento retorna `400 VALIDACAO`.
+- Resposta `200` com `{ "enquete": { ... }, "melhorDia": { ... } }`.
+
+### `GET /eventos/:id/enquete/melhor-dia`
+
+Resposta `200` com `{ "melhorDia": { ... } }` ou `null` quando não há opções.
+
+- Vence a opção com maior número de `DISPONIVEL`.
+- Empate: data mais próxima de hoje; se equidistante, prefere a futura e
+  depois a mais cedo.
+
+### `POST /eventos/:id/enquete/aplicar-melhor-dia`
+
+Somente o criador, com o evento em `RASCUNHO`.
+
+- Aplica a melhor opção em `inicioEm`/`fimEm`, convertendo do fuso local para
+  UTC, e muda o evento para `status = CONFIRMADO`.
+- Retorna `409 SEM_DISPONIBILIDADE` se ninguém marcou disponibilidade na
+  melhor data.
+- Resposta `200` com `{ "evento": { ... }, "enquete": { ... }, "melhorDia": { ... } }`.
+
+## Conversas (Fase 6)
+
+### `GET /conversas`
+
+Lista as conversas visíveis ao usuário — diretas e chats de evento — ordenadas
+pela última mensagem (decrescente).
+
+- Conversa direta: `tipo = DIRETA`, `outroUsuario` preenchido e `titulo`
+  nulo.
+- Chat de evento: `tipo = EVENTO`, `outroUsuario` nulo, `titulo` com o nome
+  do evento e `podeEnviar = true` para os participantes.
+
+```json
+{
+  "conversas": [
+    {
+      "id": 1,
+      "tipo": "DIRETA",
+      "eventoId": null,
+      "titulo": null,
+      "outroUsuario": { "id": 3, "nome": "Bruno Lima", "username": "bruno" },
+      "ultimaMensagem": {
+        "id": 12,
+        "texto": "Até mais tarde!",
+        "autorId": 2,
+        "criadoEm": "2026-11-25T22:00:00.000Z"
+      },
+      "criadoEm": "2026-11-25T21:00:00.000Z",
+      "atualizadoEm": "2026-11-25T22:00:00.000Z",
+      "bloqueada": false,
+      "podeEnviar": true
+    }
+  ]
+}
+```
+
+`bloqueada` indica bloqueio em qualquer direção. `podeEnviar` exige amizade
+confirmada e ausência de bloqueio. O histórico continua legível após um
+bloqueio ou remoção de amizade; apenas o envio é desabilitado.
+
+### `POST /conversas/diretas`
+
+```json
+{ "usuarioId": 3 }
+```
+
+Cria ou reabre a conversa direta com um amigo confirmado. É idempotente:
+retorna `201` na criação e `200` se a conversa já existir. Resposta com
+`{ "conversa": { ... } }`.
+
+Erros: `400 NAO_PODE_SI_MESMO`, `404 USUARIO_NAO_ENCONTRADO`,
+`409 BLOQUEADO`, `409 CONVERSA_NAO_PERMITIDA`.
+
+### `GET /conversas/:id/mensagens?afterId=`
+
+Somente participantes da conversa. Retorna até 200 mensagens em ordem
+crescente. Com `afterId`, retorna apenas mensagens com `id` maior (polling
+incremental).
+
+```json
+{
+  "mensagens": [
+    {
+      "id": 12,
+      "conversaId": 1,
+      "autor": { "id": 2, "nome": "Ana Souza", "username": "ana" },
+      "texto": "Até mais tarde!",
+      "criadoEm": "2026-11-25T22:00:00.000Z"
+    }
+  ],
+  "ultimaId": 12
+}
+```
+
+### `POST /conversas/:id/mensagens`
+
+```json
+{ "texto": "Combinado!" }
+```
+
+Somente participantes. O texto é obrigatório (1 a 2000 caracteres, após
+`trim`). Resposta `201` com `{ "mensagem": { ... } }`.
+
+Erros: `409 CONVERSA_BLOQUEADA` ou `409 CONVERSA_NAO_PERMITIDA`.
+
+O polling é responsabilidade do app: 5 s na conversa aberta e 15 s na lista,
+sem chamadas em segundo plano.
+
+## Chat de evento (Fase 7)
+
+Chat opcional, persistente e vinculado ao evento. Não é um grupo entre amigos
+(isso é P1).
+
+### `POST /eventos/:id/chat`
+
+Somente o criador do evento, desde que o evento não esteja cancelado. Cria o
+chat na primeira chamada e é idempotente depois disso (`201` na criação,
+`200` se já existir). Resposta com `{ "conversa": { ... } }`.
+
+### `GET /eventos/:id/chat`
+
+Visível ao criador e aos convidados do evento. Retorna
+`404 CHAT_NAO_ENCONTRADO` se o criador ainda não ativou o chat e
+`404 EVENTO_NAO_ENCONTRADO` para quem não participa do evento.
+
+### Acesso e mensagens
+
+- O chat usa a mesma tabela `mensagem` e as mesmas rotas
+  `GET/POST /conversas/:id/mensagens`.
+- Criador e convidados do evento podem ler e enviar.
+- Remover um convidado do evento remove o acesso ao chat.
+- O histórico permanece disponível depois que o evento acontece; cancelar o
+  evento não apaga o chat.
+- Não há criação de chat de evento por convidados nem chat de grupo entre
+  amigos no MVP.
+
 ## Previsto para as próximas fases
 
 Os contratos abaixo serão implementados nas fases correspondentes; ainda não
 existem endpoints funcionais para eles.
 
-### Combinação de dias
+### FCM (Fase 8)
 
-- `POST /eventos/:id/enquete` — intervalo, dias da semana e horário.
-- `GET /eventos/:id/enquete`
-- `PUT /eventos/:id/enquete/votos` — lista de opção/status.
-- `GET /eventos/:id/enquete/melhor-dia`
-- `POST /eventos/:id/enquete/aplicar-melhor-dia`
-
-### Conversas
-
-- `GET /conversas`
-- `POST /conversas/diretas` `{ "usuarioId": 2 }`
-- `POST /eventos/:id/chat`
-- `GET /conversas/:id/mensagens?afterId=`
-- `POST /conversas/:id/mensagens` `{ "texto": "..." }`
+- `PUT /me/fcm-token` `{ "token": "..." }` — registra o token do dispositivo.
+- `DELETE /me/fcm-token` — remove o token no logout.
 
 ## Mock do app
 
 Com `api_mode = mock`, o Flutter usa um backend mock stateful em memória e
-persistido em `SharedPreferences`, cobrindo autenticação e amigos (Fase 2).
+persistido em `SharedPreferences`, cobrindo autenticação, amigos, eventos,
+calendário, combinação de dias, conversas 1:1 e chat de evento (Fases 1–7).
 As rotas ainda não implementadas no mock continuam caindo em
 `assets/mock/api_responses.json`, cujas chaves usam o formato
 `"MÉTODO /caminho"`.

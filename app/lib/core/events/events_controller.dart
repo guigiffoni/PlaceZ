@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/dao/evento_dao.dart';
 import '../../data/dao/ranking_pessoas_dao.dart';
+import '../../data/models/enquete.dart';
 import '../../data/models/evento.dart';
 import '../../data/models/ranking_pessoa.dart';
 import '../auth/auth_controller.dart';
@@ -22,6 +23,8 @@ class EventsController extends ChangeNotifier {
 
   String? _erro;
   List<Evento> _eventos = [];
+  List<Evento> _rascunhos = [];
+  Evento? _ultimoCriado;
   List<PessoaRanking> _ranking = const [];
   final Set<int> _pessoasSelecionadas = <int>{};
 
@@ -51,6 +54,8 @@ class EventsController extends ChangeNotifier {
   bool get mostrandoCache => _mostrandoCache;
   String? get erro => _erro;
   List<Evento> get eventos => List.unmodifiable(_eventos);
+  List<Evento> get rascunhos => List.unmodifiable(_rascunhos);
+  Evento? get ultimoEventoCriado => _ultimoCriado;
   List<PessoaRanking> get ranking => List.unmodifiable(_ranking);
   Set<int> get pessoasSelecionadas => Set.unmodifiable(_pessoasSelecionadas);
   bool get temFiltroPessoas => _pessoasSelecionadas.isNotEmpty;
@@ -103,6 +108,7 @@ class EventsController extends ChangeNotifier {
       if (_pessoasSelecionadas.isEmpty) {
         await _salvarListaNoCache();
       }
+      await _carregarRascunhos();
     } on ApiException catch (erro) {
       if (!auth.autenticado) return;
       _erro = _mensagemDoErro(erro);
@@ -170,12 +176,14 @@ class EventsController extends ChangeNotifier {
     EventoEntrada entrada, {
     List<int> convidadoIds = const [],
   }) {
+    _ultimoCriado = null;
     return _executar(
       () async {
         final evento = await _repositorio.criar(
           entrada,
           convidadoIds: convidadoIds,
         );
+        _ultimoCriado = evento;
         await _aplicarEvento(evento);
       },
       recarregar: true,
@@ -254,6 +262,25 @@ class EventsController extends ChangeNotifier {
         permitirMembrosConvidar: permitirMembrosConvidar,
       ),
     );
+  }
+
+  Future<ConsultaEnquete> consultarEnquete(int eventoId) {
+    return _repositorio.consultarEnquete(eventoId);
+  }
+
+  Future<ConsultaEnquete> criarEnquete(int eventoId, EnqueteEntrada entrada) {
+    return _repositorio.criarEnquete(eventoId, entrada);
+  }
+
+  Future<ConsultaEnquete> votarEnquete(int eventoId, List<VotoEnquete> votos) {
+    return _repositorio.votarEnquete(eventoId, votos);
+  }
+
+  Future<String?> aplicarMelhorDia(int eventoId) {
+    return _executar(() async {
+      final evento = await _repositorio.aplicarMelhorDia(eventoId);
+      await _aplicarEvento(evento);
+    }, recarregar: true);
   }
 
   Future<String?> _executarComEvento(
@@ -354,6 +381,14 @@ class EventsController extends ChangeNotifier {
     }
   }
 
+  Future<void> _carregarRascunhos() async {
+    try {
+      _rascunhos = await _repositorio.rascunhos();
+    } catch (_) {
+      // A lista de rascunhos é opcional; o calendário continua funcionando.
+    }
+  }
+
   Future<void> _carregarRanking() async {
     try {
       final ranking = await _repositorio.rankingPessoas();
@@ -420,6 +455,8 @@ class EventsController extends ChangeNotifier {
 
   void _limparDados() {
     _eventos = [];
+    _rascunhos = [];
+    _ultimoCriado = null;
     _ranking = const [];
     _pessoasSelecionadas.clear();
     _erro = null;

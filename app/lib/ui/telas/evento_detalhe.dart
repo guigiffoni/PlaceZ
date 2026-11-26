@@ -1,25 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../core/chat/chat_repository.dart';
 import '../../core/events/events_controller.dart';
 import '../../core/events/local_catalog.dart';
 import '../../core/friends/friends_repository.dart';
 import '../../core/network/api_exception.dart';
 import '../../data/models/amizade.dart';
+import '../../data/models/conversa.dart';
 import '../../data/models/evento.dart';
 import '../widgets/seletor_mapa.dart';
 import 'cadastro.dart';
+import 'combinacao.dart';
+import 'conversa.dart';
 
 class TelaDetalheEvento extends StatefulWidget {
   final EventsController eventsController;
   final int eventoId;
   final Evento? eventoInicial;
+  final int abaInicial;
 
   const TelaDetalheEvento({
     super.key,
     required this.eventsController,
     required this.eventoId,
     this.eventoInicial,
+    this.abaInicial = 0,
   });
 
   @override
@@ -28,17 +34,92 @@ class TelaDetalheEvento extends StatefulWidget {
 
 class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
   bool _carregandoAmigos = false;
+  late final ChatRepository _chatRepository;
+  Conversa? _chatEvento;
+  bool _carregandoChat = false;
+  bool _criandoChat = false;
+  String? _erroChat;
 
   EventsController get _controller => widget.eventsController;
 
   @override
   void initState() {
     super.initState();
+    final auth = _controller.auth;
+    _chatRepository = ChatRepository(
+      tokenProvider: () async => auth.sessao?.token,
+      onUnauthorized: auth.tratarNaoAutorizado,
+    );
     _carregar();
+    _carregarChat();
   }
 
   Future<void> _carregar() async {
     await _controller.detalhar(widget.eventoId);
+  }
+
+  Future<void> _carregarChat() async {
+    if (!_controller.auth.autenticado) return;
+
+    setState(() {
+      _carregandoChat = true;
+      _erroChat = null;
+    });
+
+    try {
+      final conversa = await _chatRepository.buscarChatEvento(widget.eventoId);
+      if (!mounted) return;
+      setState(() => _chatEvento = conversa);
+    } on ApiException catch (erro) {
+      if (!mounted) return;
+      if (erro.statusCode == 404) {
+        setState(() => _chatEvento = null);
+      } else {
+        setState(() => _erroChat = erro.message);
+      }
+    } catch (erro) {
+      if (!mounted) return;
+      setState(() => _erroChat = 'Não foi possível carregar o chat: $erro');
+    } finally {
+      if (mounted) setState(() => _carregandoChat = false);
+    }
+  }
+
+  Future<void> _criarChatEvento() async {
+    if (_criandoChat) return;
+
+    setState(() => _criandoChat = true);
+    try {
+      final conversa = await _chatRepository.criarChatEvento(widget.eventoId);
+      if (!mounted) return;
+      setState(() {
+        _chatEvento = conversa;
+        _erroChat = null;
+      });
+      _avisar('Chat do evento criado.');
+    } on ApiException catch (erro) {
+      if (mounted) _avisar(erro.message);
+    } catch (erro) {
+      if (mounted) _avisar('Não foi possível criar o chat: $erro');
+    } finally {
+      if (mounted) setState(() => _criandoChat = false);
+    }
+  }
+
+  Future<void> _abrirChatEvento(Conversa conversa) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TelaConversa(
+          authController: _controller.auth,
+          conversaId: conversa.id,
+          titulo: conversa.nome,
+          podeEnviarInicial: conversa.podeEnviar,
+          bloqueadaInicial: conversa.bloqueada,
+          ehEvento: true,
+        ),
+      ),
+    );
+    if (mounted) _carregarChat();
   }
 
   Evento? get _evento =>
@@ -295,174 +376,210 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
   Widget _montarScaffold(Evento evento) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(evento.titulo),
-        actions: [
-          if (evento.souCriador)
-            PopupMenuButton<String>(
-              enabled: !_controller.acaoEmAndamento && !evento.cancelado,
-              tooltip: 'Opções do evento',
-              onSelected: (valor) {
-                if (valor == 'editar') _abrirEdicao(evento);
-                if (valor == 'cancelar') _cancelarEvento(evento);
-              },
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: 'editar',
-                  child: ListTile(
-                    leading: Icon(Icons.edit_outlined),
-                    title: Text('Editar evento'),
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'cancelar',
-                  child: ListTile(
-                    leading: Icon(Icons.event_busy_outlined),
-                    title: Text('Cancelar evento'),
-                  ),
-                ),
-              ],
-            ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _carregar,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-          children: [
-            if (_controller.erro != null) ...[
-              _Aviso(
-                mensagem: _controller.erro!,
-                erro: true,
-                onFechar: _controller.limparErro,
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (_controller.mostrandoCache) ...[
-              const _Aviso(
-                mensagem: 'Sem conexão com a API. Mostrando dados salvos no aparelho.',
-              ),
-              const SizedBox(height: 12),
-            ],
-            _cabecalho(evento, theme),
-            const SizedBox(height: 16),
-            _card(
-              theme,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.calendar_today),
-                  title: const Text('Início'),
-                  subtitle: Text(_formatarDataHora(evento.inicioEm)),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.event_available),
-                  title: const Text('Fim'),
-                  subtitle: Text(_formatarDataHora(evento.fimEm)),
-                ),
-                if (evento.local != null)
-                  ListTile(
-                    leading: const Icon(Icons.location_on_outlined),
-                    title: Text(evento.local!.rotulo),
-                    subtitle: Text(
-                      [
-                        evento.local!.endereco,
-                        evento.local!.categoria,
-                        formatarDistancia(evento.local!.distanciaMetros),
-                      ].whereType<String>().join(' · '),
+    return DefaultTabController(
+      length: 2,
+      initialIndex: widget.abaInicial,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(evento.titulo),
+          actions: [
+            if (evento.souCriador)
+              PopupMenuButton<String>(
+                enabled: !_controller.acaoEmAndamento && !evento.cancelado,
+                tooltip: 'Opções do evento',
+                onSelected: (valor) {
+                  if (valor == 'editar') _abrirEdicao(evento);
+                  if (valor == 'cancelar') _cancelarEvento(evento);
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'editar',
+                    child: ListTile(
+                      leading: Icon(Icons.edit_outlined),
+                      title: Text('Editar evento'),
                     ),
-                    trailing:
-                        evento.local!.latitude != null &&
-                            evento.local!.longitude != null
-                        ? IconButton(
-                            tooltip: 'Ver no mapa',
-                            onPressed: () => _abrirMapa(evento),
-                            icon: const Icon(Icons.map_outlined),
-                          )
-                        : null,
                   ),
-              ],
-            ),
-            if (evento.descricao != null) ...[
-              const SizedBox(height: 16),
-              Text(
-                'Descrição',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+                  PopupMenuItem(
+                    value: 'cancelar',
+                    child: ListTile(
+                      leading: Icon(Icons.event_busy_outlined),
+                      title: Text('Cancelar evento'),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 6),
-              Text(evento.descricao!),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Detalhes'),
+              Tab(text: 'Combinação'),
             ],
-            const SizedBox(height: 20),
-            Text(
-              'Presenças',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 6),
-            _contagem(evento, theme),
-            if (!evento.cancelado) ...[
-              const SizedBox(height: 12),
-              if (evento.souCriador)
-                const _Aviso(
-                  mensagem: 'Você é o criador do evento e está confirmado automaticamente.',
-                )
-              else
-                _acoesRsvp(evento, theme),
-            ],
-            const SizedBox(height: 20),
-            _configuracoes(evento, theme),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Convidados',
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            RefreshIndicator(
+              onRefresh: () async {
+                await _carregar();
+                await _carregarChat();
+              },
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                children: [
+                  if (_controller.erro != null) ...[
+                    _Aviso(
+                      mensagem: _controller.erro!,
+                      erro: true,
+                      onFechar: _controller.limparErro,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (_controller.mostrandoCache) ...[
+                    const _Aviso(
+                      mensagem: 'Sem conexão com a API. Mostrando dados salvos no aparelho.',
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  _cabecalho(evento, theme),
+                  const SizedBox(height: 16),
+                  _card(
+                    theme,
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.calendar_today),
+                        title: const Text('Início'),
+                        subtitle: Text(_formatarDataHora(evento.inicioEm)),
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.event_available),
+                        title: const Text('Fim'),
+                        subtitle: Text(_formatarDataHora(evento.fimEm)),
+                      ),
+                      if (evento.local != null)
+                        ListTile(
+                          leading: const Icon(Icons.location_on_outlined),
+                          title: Text(evento.local!.rotulo),
+                          subtitle: Text(
+                            [
+                              evento.local!.endereco,
+                              evento.local!.categoria,
+                              formatarDistancia(evento.local!.distanciaMetros),
+                            ].whereType<String>().join(' · '),
+                          ),
+                          trailing:
+                              evento.local!.latitude != null &&
+                                  evento.local!.longitude != null
+                              ? IconButton(
+                                  tooltip: 'Ver no mapa',
+                                  onPressed: () => _abrirMapa(evento),
+                                  icon: const Icon(Icons.map_outlined),
+                                )
+                              : null,
+                        ),
+                    ],
+                  ),
+                  if (evento.descricao != null) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Descrição',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(evento.descricao!),
+                  ],
+                  const SizedBox(height: 20),
+                  Text(
+                    'Presenças',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
-                if (evento.podeConvidar && !evento.cancelado) ...[
-                  if (_carregandoAmigos)
-                    const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else
-                    TextButton.icon(
-                      onPressed: _controller.acaoEmAndamento
-                          ? null
-                          : () => _abrirConvite(evento),
-                      icon: const Icon(Icons.person_add_alt_1, size: 18),
-                      label: const Text('Convidar'),
+                  const SizedBox(height: 6),
+                  _contagem(evento, theme),
+                  if (!evento.cancelado) ...[
+                    const SizedBox(height: 12),
+                    if (!evento.confirmado)
+                      const _Aviso(
+                        mensagem:
+                            'Este evento está em rascunho. A data e as '
+                            'presenças serão definidas na aba Combinação.',
+                      )
+                    else if (evento.souCriador)
+                      const _Aviso(
+                        mensagem: 'Você é o criador do evento e está confirmado automaticamente.',
+                      )
+                    else
+                      _acoesRsvp(evento, theme),
+                  ],
+                  const SizedBox(height: 20),
+                  _configuracoes(evento, theme),
+                  ..._chatEventoWidgets(evento, theme),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Convidados',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      if (evento.podeConvidar && !evento.cancelado) ...[
+                        if (_carregandoAmigos)
+                          const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        else
+                          TextButton.icon(
+                            onPressed: _controller.acaoEmAndamento
+                                ? null
+                                : () => _abrirConvite(evento),
+                            icon: const Icon(Icons.person_add_alt_1, size: 18),
+                            label: const Text('Convidar'),
+                          ),
+                      ],
+                    ],
+                  ),
+                  if (evento.podeConvidar && !evento.cancelado)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _controller.acaoEmAndamento
+                            ? null
+                            : _convidarTodos,
+                        icon: const Icon(Icons.group_add_outlined, size: 18),
+                        label: const Text('Convidar todos os amigos'),
+                      ),
                     ),
+                  const SizedBox(height: 4),
+                  _card(
+                    theme,
+                    children: evento.convidados.isEmpty
+                        ? [
+                            const ListTile(
+                              title: Text('Nenhum convidado ainda.'),
+                            ),
+                          ]
+                        : evento.convidados
+                              .map(
+                                (convidado) =>
+                                    _convidadoTile(evento, convidado),
+                              )
+                              .toList(),
+                  ),
                 ],
-              ],
-            ),
-            if (evento.podeConvidar && !evento.cancelado)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: _controller.acaoEmAndamento
-                      ? null
-                      : _convidarTodos,
-                  icon: const Icon(Icons.group_add_outlined, size: 18),
-                  label: const Text('Convidar todos os amigos'),
-                ),
               ),
-            const SizedBox(height: 4),
-            _card(
-              theme,
-              children: evento.convidados.isEmpty
-                  ? [const ListTile(title: Text('Nenhum convidado ainda.'))]
-                  : evento.convidados
-                        .map((convidado) => _convidadoTile(evento, convidado))
-                        .toList(),
+            ),
+            CombinacaoTab(
+              eventsController: _controller,
+              eventoId: widget.eventoId,
+              eventoInicial: evento,
             ),
           ],
         ),
@@ -490,10 +607,20 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
           children: [
             Chip(
               avatar: Icon(
-                evento.cancelado ? Icons.cancel_outlined : Icons.check_circle,
+                evento.cancelado
+                    ? Icons.cancel_outlined
+                    : evento.confirmado
+                    ? Icons.check_circle
+                    : Icons.edit_note,
                 size: 16,
               ),
-              label: Text(evento.cancelado ? 'Cancelado' : 'Confirmado'),
+              label: Text(
+                evento.cancelado
+                    ? 'Cancelado'
+                    : evento.confirmado
+                    ? 'Confirmado'
+                    : 'Rascunho',
+              ),
             ),
             Chip(
               avatar: Icon(
@@ -606,6 +733,72 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
         ),
       ],
     );
+  }
+
+  List<Widget> _chatEventoWidgets(Evento evento, ThemeData theme) {
+    if (_chatEvento != null) {
+      final conversa = _chatEvento!;
+      return [
+        const SizedBox(height: 20),
+        Card(
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          color: theme.colorScheme.surfaceContainerLow,
+          child: ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.groups)),
+            title: const Text('Chat do evento'),
+            subtitle: Text(
+              conversa.ultimaMensagem?.texto ??
+                  'Converse com os participantes do evento.',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _abrirChatEvento(conversa),
+          ),
+        ),
+      ];
+    }
+
+    if (!evento.souCriador || evento.cancelado) return const [];
+
+    if (_carregandoChat) {
+      return const [
+        SizedBox(height: 20),
+        Center(
+          child: SizedBox(
+            height: 20,
+            width: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ];
+    }
+
+    return [
+      const SizedBox(height: 20),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: _criandoChat ? null : _criarChatEvento,
+          icon: _criandoChat
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.forum_outlined, size: 18),
+          label: const Text('Criar chat do evento'),
+        ),
+      ),
+      if (_erroChat != null)
+        Text(
+          _erroChat!,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.error,
+          ),
+        ),
+    ];
   }
 
   Widget _configuracoes(Evento evento, ThemeData theme) {

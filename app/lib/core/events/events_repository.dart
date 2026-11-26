@@ -1,3 +1,4 @@
+import '../../data/models/enquete.dart';
 import '../../data/models/evento.dart';
 import '../../data/models/local.dart';
 import '../../data/models/ranking_pessoa.dart';
@@ -13,6 +14,7 @@ class EventoEntrada {
   final Local? local;
   final bool privado;
   final bool permitirMembrosConvidar;
+  final bool rascunho;
 
   const EventoEntrada({
     required this.titulo,
@@ -22,6 +24,7 @@ class EventoEntrada {
     this.local,
     this.privado = true,
     this.permitirMembrosConvidar = false,
+    this.rascunho = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -33,6 +36,7 @@ class EventoEntrada {
       'local': local?.toJson(),
       'privado': privado,
       'permitirMembrosConvidar': permitirMembrosConvidar,
+      'rascunho': rascunho,
     };
   }
 
@@ -47,6 +51,34 @@ class EventoEntrada {
       'local': local?.toJson(),
     };
   }
+}
+
+/// Configuração usada para gerar as opções da combinação de dias.
+class EnqueteEntrada {
+  final String dataInicio;
+  final String dataFim;
+  final List<int> diasSemana;
+  final String horaInicio;
+  final String horaFim;
+  final int fusoOffsetMinutos;
+
+  const EnqueteEntrada({
+    required this.dataInicio,
+    required this.dataFim,
+    required this.diasSemana,
+    required this.horaInicio,
+    required this.horaFim,
+    required this.fusoOffsetMinutos,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'dataInicio': dataInicio,
+    'dataFim': dataFim,
+    'diasSemana': diasSemana,
+    'horaInicio': horaInicio,
+    'horaFim': horaFim,
+    'fusoOffsetMinutos': fusoOffsetMinutos,
+  };
 }
 
 class EventsRepository {
@@ -78,6 +110,17 @@ class EventsRepository {
         '/eventos',
         query: query.isEmpty ? null : query,
       );
+      final mapa = _comoMapa(resposta);
+      return _converteLista(mapa['eventos'], Evento.fromJson);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<List<Evento>> rascunhos() async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.get('/eventos/rascunhos');
       final mapa = _comoMapa(resposta);
       return _converteLista(mapa['eventos'], Evento.fromJson);
     } finally {
@@ -221,6 +264,69 @@ class EventsRepository {
       return _eventoDaResposta(resposta);
     } finally {
       client.close();
+    }
+  }
+
+  Future<ConsultaEnquete> consultarEnquete(int eventoId) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.get('/eventos/$eventoId/enquete');
+      return _consultaDaResposta(resposta);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<ConsultaEnquete> criarEnquete(
+    int eventoId,
+    EnqueteEntrada entrada,
+  ) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.post(
+        '/eventos/$eventoId/enquete',
+        body: entrada.toJson(),
+      );
+      return _consultaDaResposta(resposta);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<ConsultaEnquete> votarEnquete(
+    int eventoId,
+    List<VotoEnquete> votos,
+  ) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.put(
+        '/eventos/$eventoId/enquete/votos',
+        body: {'votos': votos.map((voto) => voto.toJson()).toList()},
+      );
+      return _consultaDaResposta(resposta);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<Evento> aplicarMelhorDia(int eventoId) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.post(
+        '/eventos/$eventoId/enquete/aplicar-melhor-dia',
+      );
+      return _eventoDaResposta(resposta);
+    } finally {
+      client.close();
+    }
+  }
+
+  ConsultaEnquete _consultaDaResposta(dynamic resposta) {
+    final mapa = _comoMapa(resposta);
+    try {
+      return ConsultaEnquete.fromJson(mapa);
+    } on FormatException catch (erro) {
+      throw ApiException(code: 'RESPOSTA_INVALIDA', message: erro.message);
     }
   }
 

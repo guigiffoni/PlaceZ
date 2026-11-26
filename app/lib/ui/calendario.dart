@@ -84,7 +84,7 @@ class _TelaCalendarioState extends State<TelaCalendario> {
     return '$hora:$minuto';
   }
 
-  Future<void> _abrirDetalhe(Evento evento) async {
+  Future<void> _abrirDetalhe(Evento evento, {int abaInicial = 0}) async {
     final id = evento.id;
     if (id == null) return;
     await Navigator.of(context).push(
@@ -93,6 +93,62 @@ class _TelaCalendarioState extends State<TelaCalendario> {
           eventsController: _controller,
           eventoId: id,
           eventoInicial: evento,
+          abaInicial: abaInicial,
+        ),
+      ),
+    );
+  }
+
+  Widget _rascunhos(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Card(
+        margin: EdgeInsets.zero,
+        color: theme.colorScheme.tertiaryContainer,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.auto_awesome,
+                    size: 18,
+                    color: theme.colorScheme.onTertiaryContainer,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Combinações pendentes',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onTertiaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            for (final rascunho in _controller.rascunhos)
+              ListTile(
+                dense: true,
+                leading: Icon(
+                  Icons.event_note_outlined,
+                  color: theme.colorScheme.onTertiaryContainer,
+                ),
+                title: Text(rascunho.titulo),
+                subtitle: Text(
+                  rascunho.souCriador
+                      ? 'Defina os dias e confirme o evento'
+                      : 'Marque sua disponibilidade',
+                ),
+                trailing: Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: theme.colorScheme.onTertiaryContainer,
+                ),
+                onTap: () => _abrirDetalhe(rascunho, abaInicial: 1),
+              ),
+          ],
         ),
       ),
     );
@@ -148,12 +204,22 @@ class _TelaCalendarioState extends State<TelaCalendario> {
     return Column(
       children: [
         if (_controller.carregando) const LinearProgressIndicator(),
-        if (_controller.erro != null)
+        if (_controller.erro != null) ...[
           _Aviso(
             mensagem: _controller.erro!,
             erro: true,
             onFechar: _controller.limparErro,
           ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _controller.carregando
+                  ? null
+                  : _controller.atualizarCalendario,
+              child: const Text('Tentar novamente'),
+            ),
+          ),
+        ],
         if (_controller.mostrandoCache)
           const _Aviso(
             mensagem:
@@ -161,6 +227,8 @@ class _TelaCalendarioState extends State<TelaCalendario> {
           ),
         if (!_controller.auth.autenticado)
           const _Aviso(mensagem: 'Entre para ver os eventos dos seus amigos.'),
+        if (_controller.auth.autenticado && _controller.rascunhos.isNotEmpty)
+          _rascunhos(theme),
         if (_controller.auth.autenticado && _controller.ranking.isNotEmpty)
           _filtroPessoas(theme),
         TableCalendar<Evento>(

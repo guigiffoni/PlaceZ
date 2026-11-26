@@ -38,6 +38,7 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
   Local? _localSelecionado;
   bool _privado = true;
   bool _permitirMembrosConvidar = false;
+  bool _usarCombinacao = false;
 
   List<Amigo> _amigos = const [];
   Set<int> _convidadosSelecionados = <int>{};
@@ -48,6 +49,10 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
   FriendsRepository? _friendsRepository;
 
   bool get _modoEdicao => widget.eventoParaEditar != null;
+
+  bool get _emRascunho => _modoEdicao
+      ? widget.eventoParaEditar!.status == 'RASCUNHO'
+      : _usarCombinacao;
 
   @override
   void initState() {
@@ -63,6 +68,7 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
       _localSelecionado = evento.local;
       _privado = evento.privado;
       _permitirMembrosConvidar = evento.permitirMembrosConvidar;
+      _usarCombinacao = evento.status == 'RASCUNHO';
     }
 
     final auth = widget.eventsController.auth;
@@ -393,7 +399,8 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
   Future<void> _salvar() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_dataFim.isBefore(_dataInicio)) {
+    final emRascunho = _emRascunho;
+    if (!emRascunho && _dataFim.isBefore(_dataInicio)) {
       _avisar('A data de fim deve ser após a data de início.');
       return;
     }
@@ -406,11 +413,12 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
         descricao: _descricaoController.text.trim().isEmpty
             ? null
             : _descricaoController.text.trim(),
-        inicioEm: _dataInicio.toUtc(),
-        fimEm: _dataFim.toUtc(),
+        inicioEm: emRascunho ? null : _dataInicio.toUtc(),
+        fimEm: emRascunho ? null : _dataFim.toUtc(),
         local: _localSelecionado,
         privado: _privado,
         permitirMembrosConvidar: _permitirMembrosConvidar,
+        rascunho: emRascunho,
       );
 
       String? erro;
@@ -450,7 +458,14 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Evento criado com sucesso!')),
+        SnackBar(
+          content: Text(
+            emRascunho
+                ? 'Rascunho criado. Abra "Combinações pendentes" no '
+                      'calendário para definir os dias.'
+                : 'Evento criado com sucesso!',
+          ),
+        ),
       );
       setState(() {
         _tituloController.clear();
@@ -460,6 +475,7 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
         _localSelecionado = null;
         _privado = true;
         _permitirMembrosConvidar = false;
+        _usarCombinacao = false;
         _convidadosSelecionados = <int>{};
       });
     } finally {
@@ -512,7 +528,20 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 20),
+            if (!_modoEdicao) ...[
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _usarCombinacao,
+                onChanged: (valor) => setState(() => _usarCombinacao = valor),
+                title: const Text('Usar combinação de dias'),
+                subtitle: const Text(
+                  'Cria um rascunho e deixa os convidados votarem nos dias '
+                  'possíveis antes de confirmar.',
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.location_on),
@@ -527,24 +556,38 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
               onTap: _abrirOpcoesDeLocal,
             ),
-            const Divider(),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.calendar_today),
-              title: const Text('Início *'),
-              subtitle: Text(_formatarData(_dataInicio)),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () => _selecionarDataHora(true),
-            ),
-            const Divider(),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.calendar_today),
-              title: const Text('Fim *'),
-              subtitle: Text(_formatarData(_dataFim)),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () => _selecionarDataHora(false),
-            ),
+            if (_emRascunho)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.auto_awesome),
+                title: const Text('Data por combinação'),
+                subtitle: Text(
+                  _modoEdicao
+                      ? 'Ajuste o período e os dias na aba Combinação.'
+                      : 'Depois de salvar, defina o período e os dias na aba '
+                            'Combinação.',
+                ),
+              )
+            else ...[
+              const Divider(),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_today),
+                title: const Text('Início *'),
+                subtitle: Text(_formatarData(_dataInicio)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () => _selecionarDataHora(true),
+              ),
+              const Divider(),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_today),
+                title: const Text('Fim *'),
+                subtitle: Text(_formatarData(_dataFim)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () => _selecionarDataHora(false),
+              ),
+            ],
             const SizedBox(height: 16),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../core/auth/auth_controller.dart';
+import '../core/chat/chat_repository.dart';
 import '../core/friends/friends_controller.dart';
+import '../core/network/api_exception.dart';
 import '../data/models/amizade.dart';
+import 'telas/conversa.dart';
 import 'telas/login.dart';
 
 class TelaAmigos extends StatefulWidget {
@@ -17,6 +20,7 @@ class TelaAmigos extends StatefulWidget {
 class _TelaAmigosState extends State<TelaAmigos> {
   late final FriendsController _controller;
   final TextEditingController _buscaController = TextEditingController();
+  bool _abrindoConversa = false;
 
   @override
   void initState() {
@@ -53,6 +57,39 @@ class _TelaAmigosState extends State<TelaAmigos> {
   Future<void> _buscar() async {
     FocusScope.of(context).unfocus();
     await _controller.buscar(_buscaController.text);
+  }
+
+  Future<void> _abrirConversa(UsuarioResumo usuario) async {
+    if (_abrindoConversa) return;
+    setState(() => _abrindoConversa = true);
+
+    try {
+      final auth = widget.authController;
+      final repositorio = ChatRepository(
+        tokenProvider: () async => auth.sessao?.token,
+        onUnauthorized: auth.tratarNaoAutorizado,
+      );
+      final conversa = await repositorio.criarDireta(usuario.id);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => TelaConversa(
+            authController: auth,
+            conversaId: conversa.id,
+            titulo: conversa.nome,
+            outroUsuarioId: conversa.outroUsuario?.id ?? usuario.id,
+            podeEnviarInicial: conversa.podeEnviar,
+            bloqueadaInicial: conversa.bloqueada,
+          ),
+        ),
+      );
+    } on ApiException catch (erro) {
+      if (mounted) _avisar(erro.message);
+    } catch (erro) {
+      if (mounted) _avisar('Não foi possível abrir a conversa: $erro');
+    } finally {
+      if (mounted) setState(() => _abrindoConversa = false);
+    }
   }
 
   Future<void> _adicionar(String username) async {
@@ -444,7 +481,8 @@ class _TelaAmigosState extends State<TelaAmigos> {
     return ListTile(
       leading: _avatar(amigo.usuario),
       title: Text(amigo.usuario.nome),
-      subtitle: Text(amigo.usuario.identificador),
+      subtitle: Text('${amigo.usuario.identificador} · toque para conversar'),
+      onTap: _abrindoConversa ? null : () => _abrirConversa(amigo.usuario),
       trailing: PopupMenuButton<String>(
         enabled: !_controller.acaoEmAndamento,
         tooltip: 'Opções',

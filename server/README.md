@@ -49,6 +49,10 @@ SELECT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') FROM dual;
 
 Deve retornar `PLACEZ`. Depois execute `sql/schema.sql`.
 
+Em um banco que já tinha o schema de fases anteriores, aplique apenas os
+scripts pendentes de `sql/migrations/` na ordem dos nomes. A migração da Fase 5
+é `sql/migrations/2026-11-25_fase5.sql`.
+
 As tabelas devem ser criadas no schema `PLACEZ`, não em `ADMIN`.
 
 ### 4. Obter a connection string
@@ -148,6 +152,23 @@ Libere a porta 3000 na VPS e na Security List da VCN:
 sudo ufw allow 3000/tcp
 ```
 
+## Notificações push (Fase 8, modo no-op)
+
+Nesta versão não há envio de push e nenhuma dependência do Firebase. O app
+inicia com `NoopNotificacaoService`, que não pede permissão, não gera token e
+não faz chamadas ao backend.
+
+Quando o Firebase for configurado:
+
+1. Adicione `firebase_core`, `firebase_messaging` e `google-services.json` no
+   Android.
+2. Troque a factory `criarNotificacaoService` por uma implementação FCM.
+3. Implemente `PUT /me/fcm-token` e o envio no backend.
+4. A coluna `usuario.fcm_token` já existe no schema.
+
+O app e a API continuam funcionando sem esse passo; o polling do chat e o
+refresh do calendário cobrem a atualização em primeiro plano.
+
 ## Gerar o APK apontando para a VPS
 
 A URL da API é definida em tempo de build:
@@ -176,6 +197,7 @@ server/
     session.js
     middleware/auth.js
     routes/auth.js
+    routes/chat.js
     routes/events.js
     routes/friends.js
     routes/health.js

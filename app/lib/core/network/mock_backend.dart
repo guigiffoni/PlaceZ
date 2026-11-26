@@ -62,8 +62,17 @@ class MockBackend {
 
     garante('proximo_evento_id', 1);
     garante('proximo_local_id', 1);
+    garante('proximo_enquete_id', 1);
+    garante('proximo_opcao_enquete_id', 1);
+    garante('proximo_conversa_id', 1);
+    garante('proxima_mensagem_id', 1);
     garante('eventos', <dynamic>[]);
     garante('convidados_evento', <dynamic>[]);
+    garante('enquetes', <dynamic>[]);
+    garante('opcoes_enquete', <dynamic>[]);
+    garante('votos_enquete', <dynamic>[]);
+    garante('conversas', <dynamic>[]);
+    garante('mensagens', <dynamic>[]);
     return alterou;
   }
 
@@ -73,6 +82,10 @@ class MockBackend {
       'proxima_amizade_id': 1,
       'proximo_evento_id': 1,
       'proximo_local_id': 1,
+      'proximo_enquete_id': 1,
+      'proximo_opcao_enquete_id': 1,
+      'proximo_conversa_id': 1,
+      'proxima_mensagem_id': 1,
       'usuarios': [
         {
           'id': 1,
@@ -93,6 +106,11 @@ class MockBackend {
       'bloqueios': <dynamic>[],
       'eventos': <dynamic>[],
       'convidados_evento': <dynamic>[],
+      'enquetes': <dynamic>[],
+      'opcoes_enquete': <dynamic>[],
+      'votos_enquete': <dynamic>[],
+      'conversas': <dynamic>[],
+      'mensagens': <dynamic>[],
     };
   }
 
@@ -131,10 +149,24 @@ class MockBackend {
         return _bloquear(token, corpo);
       case 'GET /eventos':
         return _listarEventos(token, query);
+      case 'GET /eventos/rascunhos':
+        return _listarRascunhos(token);
       case 'POST /eventos':
         return _criarEvento(token, corpo);
       case 'GET /calendario/pessoas-frequentes':
         return _rankingPessoas(token);
+      case 'GET /conversas':
+        return _listarConversas(token);
+      case 'POST /conversas/diretas':
+        return _criarConversaDireta(token, corpo);
+    }
+
+    final mensagensConversa = RegExp(r'^/conversas/(\d+)/mensagens$')
+        .firstMatch(caminho);
+    if (mensagensConversa != null) {
+      final id = int.parse(mensagensConversa.group(1)!);
+      if (method == 'GET') return _listarMensagens(token, id, query);
+      if (method == 'POST') return _enviarMensagem(token, id, corpo);
     }
 
     final convidaTodos = RegExp(r'^/eventos/(\d+)/convidados/todos$')
@@ -167,6 +199,40 @@ class MockBackend {
     final configEvento = RegExp(r'^/eventos/(\d+)/config$').firstMatch(caminho);
     if (method == 'PATCH' && configEvento != null) {
       return _configurarEvento(token, int.parse(configEvento.group(1)!), corpo);
+    }
+
+    final enqueteEvento = RegExp(r'^/eventos/(\d+)/enquete$')
+        .firstMatch(caminho);
+    if (enqueteEvento != null) {
+      final id = int.parse(enqueteEvento.group(1)!);
+      if (method == 'GET') return _consultarEnquete(token, id);
+      if (method == 'POST') return _criarEnquete(token, id, corpo);
+    }
+
+    final votosEnquete = RegExp(r'^/eventos/(\d+)/enquete/votos$')
+        .firstMatch(caminho);
+    if (method == 'PUT' && votosEnquete != null) {
+      return _votarEnquete(token, int.parse(votosEnquete.group(1)!), corpo);
+    }
+
+    final melhorDiaEnquete = RegExp(r'^/eventos/(\d+)/enquete/melhor-dia$')
+        .firstMatch(caminho);
+    if (method == 'GET' && melhorDiaEnquete != null) {
+      return _melhorDiaEnquete(token, int.parse(melhorDiaEnquete.group(1)!));
+    }
+
+    final aplicarEnquete = RegExp(
+      r'^/eventos/(\d+)/enquete/aplicar-melhor-dia$',
+    ).firstMatch(caminho);
+    if (method == 'POST' && aplicarEnquete != null) {
+      return _aplicarMelhorDia(token, int.parse(aplicarEnquete.group(1)!));
+    }
+
+    final chatEvento = RegExp(r'^/eventos/(\d+)/chat$').firstMatch(caminho);
+    if (chatEvento != null) {
+      final id = int.parse(chatEvento.group(1)!);
+      if (method == 'GET') return _consultarChatEvento(token, id);
+      if (method == 'POST') return _criarChatEvento(token, id);
     }
 
     final eventoId = RegExp(r'^/eventos/(\d+)$').firstMatch(caminho);
@@ -676,7 +742,7 @@ class MockBackend {
 
     for (final item in _eventos) {
       final evento = Map<String, dynamic>.from(item as Map);
-      if (evento['status'] == 'CANCELADO') continue;
+      if (evento['status'] != 'CONFIRMADO') continue;
       if (!_eventoVisivel(evento, meuId)) continue;
 
       final inicio = _dataDoEvento(evento['inicioEm']);
@@ -701,6 +767,32 @@ class MockBackend {
       final comparacao = d1.compareTo(d2);
       if (comparacao != 0) return comparacao;
       return (a['id'] as int).compareTo(b['id'] as int);
+    });
+
+    return MockResponse(200, {
+      'eventos': encontrados.map((e) => _eventoJson(e, meuId)).toList(),
+    });
+  }
+
+  MockResponse _listarRascunhos(String? token) {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final encontrados = <Map<String, dynamic>>[];
+    for (final item in _eventos) {
+      final evento = Map<String, dynamic>.from(item as Map);
+      if (evento['status'] != 'RASCUNHO') continue;
+      if (!_eventoVisivel(evento, meuId)) continue;
+      encontrados.add(evento);
+    }
+
+    encontrados.sort((a, b) {
+      final porData = (b['criadoEm'] ?? '').toString().compareTo(
+        (a['criadoEm'] ?? '').toString(),
+      );
+      if (porData != 0) return porData;
+      return (b['id'] as int).compareTo(a['id'] as int);
     });
 
     return MockResponse(200, {
@@ -761,6 +853,355 @@ class MockBackend {
     return MockResponse(200, {'pessoas': pessoas});
   }
 
+  // ---------------------------------------------------------------------
+  // Chat 1:1 (Fase 6)
+  // ---------------------------------------------------------------------
+
+  MockResponse _listarConversas(String? token) {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final conversas = _conversas
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .where((item) => _conversaVisivel(item, meuId))
+        .map((item) => _conversaJson(item, meuId))
+        .toList();
+
+    conversas.sort((a, b) {
+      final porData = (b['atualizadoEm'] ?? '').toString().compareTo(
+        (a['atualizadoEm'] ?? '').toString(),
+      );
+      if (porData != 0) return porData;
+      return (b['id'] as int).compareTo(a['id'] as int);
+    });
+
+    return MockResponse(200, {'conversas': conversas});
+  }
+
+  Future<MockResponse> _criarConversaDireta(
+    String? token,
+    Map<String, dynamic> corpo,
+  ) async {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final outroId = _comoInt(corpo['usuarioId']);
+    if (outroId == null || outroId <= 0) {
+      return _erro(400, 'VALIDACAO', 'Dados inválidos.', [
+        {'campo': 'usuarioId', 'mensagem': 'Informe um usuário válido.'},
+      ]);
+    }
+    if (outroId == meuId) {
+      return _erro(
+        400,
+        'NAO_PODE_SI_MESMO',
+        'Você não pode conversar consigo mesmo.',
+      );
+    }
+    if (_usuarioPorId(outroId) == null) {
+      return _erro(404, 'USUARIO_NAO_ENCONTRADO', 'Usuário não encontrado.');
+    }
+    if (_existeBloqueio(meuId, outroId)) {
+      return _erro(409, 'BLOQUEADO', 'Há um bloqueio entre vocês.');
+    }
+    final amizade = _amizadeDoPar(meuId, outroId);
+    if (amizade == null || amizade['status'] != 'A') {
+      return _erro(
+        409,
+        'CONVERSA_NAO_PERMITIDA',
+        'Vocês precisam ser amigos para conversar.',
+      );
+    }
+
+    var conversa = _conversaDoPar(meuId, outroId);
+    var criada = false;
+    if (conversa == null) {
+      final id = _dados['proximo_conversa_id'] as int;
+      _dados['proximo_conversa_id'] = id + 1;
+      conversa = <String, dynamic>{
+        'id': id,
+        'tipo': 'DIRETA',
+        'usuarioAId': meuId < outroId ? meuId : outroId,
+        'usuarioBId': meuId < outroId ? outroId : meuId,
+        'criadoEm': _agoraIso(),
+      };
+      _conversas.add(conversa);
+      criada = true;
+      await _salva();
+    }
+
+    return MockResponse(criada ? 201 : 200, {
+      'conversa': _conversaJson(conversa, meuId),
+    });
+  }
+
+  MockResponse _listarMensagens(
+    String? token,
+    int conversaId,
+    Map<String, String>? query,
+  ) {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final conversa = _conversaPorId(conversaId);
+    if (conversa == null || !_conversaVisivel(conversa, meuId)) {
+      return _erro(404, 'CONVERSA_NAO_ENCONTRADA', 'Conversa não encontrada.');
+    }
+
+    final afterId = _comoInt(query?['afterId']);
+    final mensagens = _mensagens
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .where(
+          (item) =>
+              item['conversaId'] == conversaId &&
+              (afterId == null || (item['id'] as int) > afterId),
+        )
+        .map((item) => _mensagemJson(item))
+        .toList();
+
+    mensagens.sort((a, b) => (a['id'] as int).compareTo(b['id'] as int));
+    final limitadas = mensagens.length > 200
+        ? mensagens.sublist(mensagens.length - 200)
+        : mensagens;
+
+    return MockResponse(200, {
+      'mensagens': limitadas,
+      'ultimaId': limitadas.isEmpty ? afterId ?? 0 : limitadas.last['id'],
+    });
+  }
+
+  Future<MockResponse> _enviarMensagem(
+    String? token,
+    int conversaId,
+    Map<String, dynamic> corpo,
+  ) async {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final conversa = _conversaPorId(conversaId);
+    if (conversa == null || !_conversaVisivel(conversa, meuId)) {
+      return _erro(404, 'CONVERSA_NAO_ENCONTRADA', 'Conversa não encontrada.');
+    }
+
+    final texto = (corpo['texto'] ?? '').toString().trim();
+    if (texto.isEmpty || texto.length > 2000) {
+      return _erro(400, 'VALIDACAO', 'Dados inválidos.', [
+        {
+          'campo': 'texto',
+          'mensagem': 'Informe uma mensagem entre 1 e 2000 caracteres.',
+        },
+      ]);
+    }
+
+    if (conversa['tipo'] != 'EVENTO') {
+      final outroId = _outroDaConversa(conversa, meuId);
+      if (_existeBloqueio(meuId, outroId)) {
+        return _erro(
+          409,
+          'CONVERSA_BLOQUEADA',
+          'Não é possível enviar mensagens enquanto houver bloqueio.',
+        );
+      }
+      final amizade = _amizadeDoPar(meuId, outroId);
+      if (amizade == null || amizade['status'] != 'A') {
+        return _erro(
+          409,
+          'CONVERSA_NAO_PERMITIDA',
+          'Vocês precisam ser amigos para conversar.',
+        );
+      }
+    }
+
+    final id = _dados['proxima_mensagem_id'] as int;
+    _dados['proxima_mensagem_id'] = id + 1;
+    final mensagem = <String, dynamic>{
+      'id': id,
+      'conversaId': conversaId,
+      'autorId': meuId,
+      'texto': texto,
+      'criadoEm': _agoraIso(),
+    };
+    _mensagens.add(mensagem);
+    await _salva();
+
+    return MockResponse(201, {'mensagem': _mensagemJson(mensagem)});
+  }
+
+  Map<String, dynamic> _conversaJson(Map<String, dynamic> conversa, int eu) {
+    final tipo = (conversa['tipo'] ?? 'DIRETA').toString();
+    final ultima = _ultimaMensagem(conversa['id'] as int);
+    Map<String, dynamic>? outroJson;
+    String? titulo;
+    var bloqueada = false;
+    var podeEnviar = true;
+
+    if (tipo == 'EVENTO') {
+      final evento = _eventoPorId(conversa['eventoId'] as int);
+      titulo = evento?['titulo']?.toString();
+    } else {
+      final outroId = _outroDaConversa(conversa, eu);
+      final outro = _usuarioPorId(outroId);
+      outroJson = outro == null ? null : _publico(outro);
+      bloqueada = _existeBloqueio(eu, outroId);
+      final amizade = _amizadeDoPar(eu, outroId);
+      podeEnviar = !bloqueada && amizade != null && amizade['status'] == 'A';
+    }
+
+    return {
+      'id': conversa['id'],
+      'tipo': tipo,
+      'eventoId': conversa['eventoId'],
+      'titulo': titulo,
+      'outroUsuario': outroJson,
+      'ultimaMensagem': ultima == null
+          ? null
+          : {
+              'id': ultima['id'],
+              'texto': ultima['texto'],
+              'autorId': ultima['autorId'],
+              'criadoEm': ultima['criadoEm'],
+            },
+      'criadoEm': conversa['criadoEm'],
+      'atualizadoEm': ultima?['criadoEm'] ?? conversa['criadoEm'],
+      'bloqueada': bloqueada,
+      'podeEnviar': podeEnviar,
+    };
+  }
+
+  Map<String, dynamic> _mensagemJson(Map<String, dynamic> mensagem) {
+    final autor = _usuarioPorId(mensagem['autorId'] as int);
+    return {
+      'id': mensagem['id'],
+      'conversaId': mensagem['conversaId'],
+      'autor': autor == null ? null : _publico(autor),
+      'texto': mensagem['texto'],
+      'criadoEm': mensagem['criadoEm'],
+    };
+  }
+
+  int _outroDaConversa(Map<String, dynamic> conversa, int eu) {
+    return conversa['usuarioAId'] == eu
+        ? conversa['usuarioBId'] as int
+        : conversa['usuarioAId'] as int;
+  }
+
+  Map<String, dynamic>? _conversaDoPar(int a, int b) {
+    final menor = a < b ? a : b;
+    final maior = a < b ? b : a;
+    for (final item in _conversas) {
+      if (item['tipo'] == 'DIRETA' &&
+          item['usuarioAId'] == menor &&
+          item['usuarioBId'] == maior) {
+        return item as Map<String, dynamic>;
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _conversaPorId(int id) {
+    for (final item in _conversas) {
+      if (item['id'] == id) return item as Map<String, dynamic>;
+    }
+    return null;
+  }
+
+  bool _conversaVisivel(Map<String, dynamic> conversa, int eu) {
+    if (conversa['tipo'] == 'EVENTO') {
+      final evento = _eventoPorId(conversa['eventoId'] as int);
+      return evento != null && _eventoVisivel(evento, eu);
+    }
+    return conversa['usuarioAId'] == eu || conversa['usuarioBId'] == eu;
+  }
+
+  Map<String, dynamic>? _conversaDoEvento(int eventoId) {
+    for (final item in _conversas) {
+      if (item['tipo'] == 'EVENTO' && item['eventoId'] == eventoId) {
+        return item as Map<String, dynamic>;
+      }
+    }
+    return null;
+  }
+
+  Future<MockResponse> _criarChatEvento(String? token, int eventoId) async {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final evento = _eventoPorId(eventoId);
+    if (evento == null) {
+      return _erro(404, 'EVENTO_NAO_ENCONTRADO', 'Evento não encontrado.');
+    }
+    if (evento['criadorId'] != meuId) {
+      return _erro(
+        403,
+        'SEM_PERMISSAO',
+        'Você não tem permissão para esta ação.',
+      );
+    }
+    if (evento['status'] == 'CANCELADO') {
+      return _erro(409, 'EVENTO_CANCELADO', 'Este evento foi cancelado.');
+    }
+
+    var conversa = _conversaDoEvento(eventoId);
+    var criada = false;
+    if (conversa == null) {
+      final id = _dados['proximo_conversa_id'] as int;
+      _dados['proximo_conversa_id'] = id + 1;
+      conversa = <String, dynamic>{
+        'id': id,
+        'tipo': 'EVENTO',
+        'eventoId': eventoId,
+        'criadoEm': _agoraIso(),
+      };
+      _conversas.add(conversa);
+      criada = true;
+      await _salva();
+    }
+
+    return MockResponse(criada ? 201 : 200, {
+      'conversa': _conversaJson(conversa, meuId),
+    });
+  }
+
+  MockResponse _consultarChatEvento(String? token, int eventoId) {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final evento = _eventoPorId(eventoId);
+    if (evento == null || !_eventoVisivel(evento, meuId)) {
+      return _erro(404, 'EVENTO_NAO_ENCONTRADO', 'Evento não encontrado.');
+    }
+
+    final conversa = _conversaDoEvento(eventoId);
+    if (conversa == null) {
+      return _erro(
+        404,
+        'CHAT_NAO_ENCONTRADO',
+        'Este evento ainda não tem chat.',
+      );
+    }
+    return MockResponse(200, {'conversa': _conversaJson(conversa, meuId)});
+  }
+
+  Map<String, dynamic>? _ultimaMensagem(int conversaId) {
+    Map<String, dynamic>? ultima;
+    for (final item in _mensagens) {
+      final mensagem = item as Map<String, dynamic>;
+      if (mensagem['conversaId'] != conversaId) continue;
+      if (ultima == null || (mensagem['id'] as int) > (ultima['id'] as int)) {
+        ultima = mensagem;
+      }
+    }
+    return ultima;
+  }
+
   Future<MockResponse> _criarEvento(
     String? token,
     Map<String, dynamic> corpo,
@@ -792,8 +1233,15 @@ class MockBackend {
       false,
       erros,
     );
+    final rascunho = _lerBoolMock(corpo['rascunho'], 'rascunho', false, erros);
     final convidadoIds = _lerConvidadoIdsMock(corpo['convidadoIds'], erros);
 
+    if (!rascunho && inicio == null) {
+      erros.add({
+        'campo': 'inicioEm',
+        'mensagem': 'Informe a data de início do evento.',
+      });
+    }
     if (inicio != null && fim != null && fim.isBefore(inicio)) {
       erros.add({
         'campo': 'fimEm',
@@ -813,13 +1261,13 @@ class MockBackend {
       'id': id,
       'titulo': titulo,
       'descricao': descricao,
-      'inicioEm': _isoMock(inicio),
-      'fimEm': _isoMock(fim),
+      'inicioEm': rascunho ? null : _isoMock(inicio),
+      'fimEm': rascunho ? null : _isoMock(fim),
       'local': local,
       'criadorId': meuId,
       'privado': privado,
       'permitirMembrosConvidar': permitir,
-      'status': 'CONFIRMADO',
+      'status': rascunho ? 'RASCUNHO' : 'CONFIRMADO',
       'criadoEm': agora,
       'atualizadoEm': agora,
     };
@@ -1160,6 +1608,13 @@ class MockBackend {
     if (evento == null || !_eventoVisivel(evento, meuId)) {
       return _erro(404, 'EVENTO_NAO_ENCONTRADO', 'Evento não encontrado.');
     }
+    if (evento['status'] == 'RASCUNHO') {
+      return _erro(
+        409,
+        'EVENTO_NAO_CONFIRMADO',
+        'O evento ainda não foi confirmado.',
+      );
+    }
     if (evento['status'] != 'CONFIRMADO') {
       return _erro(409, 'EVENTO_CANCELADO', 'Este evento foi cancelado.');
     }
@@ -1183,6 +1638,563 @@ class MockBackend {
 
     return MockResponse(200, {'evento': _eventoJson(evento, meuId)});
   }
+
+  MockResponse _consultarEnquete(String? token, int eventoId) {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final evento = _eventoPorId(eventoId);
+    if (evento == null || !_eventoVisivel(evento, meuId)) {
+      return _erro(404, 'EVENTO_NAO_ENCONTRADO', 'Evento não encontrado.');
+    }
+
+    final enquete = _enqueteDoEvento(eventoId);
+    if (enquete == null) {
+      return _erro(
+        404,
+        'ENQUETE_NAO_ENCONTRADA',
+        'Combinação de dias não encontrada.',
+      );
+    }
+    return MockResponse(200, _consultaEnqueteJson(enquete, meuId));
+  }
+
+  Future<MockResponse> _criarEnquete(
+    String? token,
+    int eventoId,
+    Map<String, dynamic> corpo,
+  ) async {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final erros = <Map<String, String>>[];
+    final dataInicio = _lerDiaMock(corpo['dataInicio'], 'dataInicio', erros);
+    final dataFim = _lerDiaMock(corpo['dataFim'], 'dataFim', erros);
+    final diasSemana = _lerDiasSemanaMock(corpo['diasSemana'], erros);
+    final horaInicio = _lerHoraMock(corpo['horaInicio'], 'horaInicio', erros);
+    final horaFim = _lerHoraMock(corpo['horaFim'], 'horaFim', erros);
+    final fuso = _lerOffsetMock(corpo['fusoOffsetMinutos'], erros);
+
+    if (dataInicio != null &&
+        dataFim != null &&
+        dataFim.compareTo(dataInicio) < 0) {
+      erros.add({
+        'campo': 'dataFim',
+        'mensagem': 'A data final deve ser igual ou posterior à inicial.',
+      });
+    }
+    if (horaInicio != null &&
+        horaFim != null &&
+        horaFim.compareTo(horaInicio) <= 0) {
+      erros.add({
+        'campo': 'horaFim',
+        'mensagem': 'O horário final deve ser posterior ao inicial.',
+      });
+    }
+    if (erros.isNotEmpty) {
+      return _erro(400, 'VALIDACAO', 'Dados inválidos.', erros);
+    }
+
+    final inicio = _diaUtc(dataInicio!);
+    final fim = _diaUtc(dataFim!);
+    final dias = <DateTime>[];
+    for (
+      var cursor = inicio;
+      !cursor.isAfter(fim);
+      cursor = cursor.add(const Duration(days: 1))
+    ) {
+      dias.add(cursor);
+    }
+    if (dias.length > 60) {
+      return _erro(400, 'VALIDACAO', 'Dados inválidos.', [
+        {
+          'campo': 'dataFim',
+          'mensagem': 'O intervalo pode ter no máximo 60 dias.',
+        },
+      ]);
+    }
+
+    final datas = dias
+        .where((data) => diasSemana.contains(data.weekday))
+        .toList();
+    if (datas.isEmpty) {
+      return _erro(400, 'VALIDACAO', 'Dados inválidos.', [
+        {
+          'campo': 'diasSemana',
+          'mensagem':
+              'Nenhuma data do intervalo corresponde aos dias escolhidos.',
+        },
+      ]);
+    }
+
+    final meuId = eu['id'] as int;
+    final evento = _eventoPorId(eventoId);
+    if (evento == null || !_eventoVisivel(evento, meuId)) {
+      return _erro(404, 'EVENTO_NAO_ENCONTRADO', 'Evento não encontrado.');
+    }
+    if (evento['criadorId'] != meuId) {
+      return _erro(
+        403,
+        'SEM_PERMISSAO',
+        'Você não tem permissão para esta ação.',
+      );
+    }
+    if (evento['status'] != 'RASCUNHO') {
+      return _erro(
+        409,
+        'EVENTO_NAO_ESTA_EM_RASCUNHO',
+        'A combinação só pode ser alterada enquanto o evento está em rascunho.',
+      );
+    }
+    if (_enqueteDoEvento(eventoId) != null) {
+      return _erro(
+        409,
+        'ENQUETE_EXISTENTE',
+        'Este evento já tem uma combinação de dias.',
+      );
+    }
+
+    final enqueteId = _dados['proximo_enquete_id'] as int;
+    _dados['proximo_enquete_id'] = enqueteId + 1;
+    final enquete = <String, dynamic>{
+      'id': enqueteId,
+      'eventoId': eventoId,
+      'dataInicio': dataInicio,
+      'dataFim': dataFim,
+      'diasSemana': diasSemana,
+      'horaInicio': horaInicio,
+      'horaFim': horaFim,
+      'fusoOffsetMinutos': fuso,
+    };
+    _enquetes.add(enquete);
+
+    for (final data in datas) {
+      final opcaoId = _dados['proximo_opcao_enquete_id'] as int;
+      _dados['proximo_opcao_enquete_id'] = opcaoId + 1;
+      _opcoesEnquete.add({
+        'id': opcaoId,
+        'enqueteId': enqueteId,
+        'data': _isoDia(data),
+        'horaInicio': horaInicio,
+        'horaFim': horaFim,
+      });
+    }
+
+    await _salva();
+    return MockResponse(201, _consultaEnqueteJson(enquete, meuId));
+  }
+
+  Future<MockResponse> _votarEnquete(
+    String? token,
+    int eventoId,
+    Map<String, dynamic> corpo,
+  ) async {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final evento = _eventoPorId(eventoId);
+    if (evento == null || !_eventoVisivel(evento, meuId)) {
+      return _erro(404, 'EVENTO_NAO_ENCONTRADO', 'Evento não encontrado.');
+    }
+    if (evento['status'] != 'RASCUNHO') {
+      return _erro(
+        409,
+        'EVENTO_NAO_ESTA_EM_RASCUNHO',
+        'A combinação só pode ser alterada enquanto o evento está em rascunho.',
+      );
+    }
+
+    final enquete = _enqueteDoEvento(eventoId);
+    if (enquete == null) {
+      return _erro(
+        404,
+        'ENQUETE_NAO_ENCONTRADA',
+        'Combinação de dias não encontrada.',
+      );
+    }
+
+    final entrada = corpo['votos'];
+    if (entrada is! List || entrada.isEmpty) {
+      return _erro(400, 'VALIDACAO', 'Dados inválidos.', [
+        {
+          'campo': 'votos',
+          'mensagem': 'Informe ao menos um voto de disponibilidade.',
+        },
+      ]);
+    }
+
+    final porOpcao = <int, String>{};
+    for (final item in entrada) {
+      if (item is! Map) {
+        return _erro(400, 'VALIDACAO', 'Dados inválidos.', [
+          {'campo': 'votos', 'mensagem': 'Voto inválido.'},
+        ]);
+      }
+      final opcaoId = _comoInt(item['opcaoId']);
+      final status = (item['status'] ?? '').toString().toUpperCase();
+      if (opcaoId == null || opcaoId <= 0) {
+        return _erro(400, 'VALIDACAO', 'Dados inválidos.', [
+          {'campo': 'votos', 'mensagem': 'Informe uma opção de data válida.'},
+        ]);
+      }
+      if (status != 'DISPONIVEL' && status != 'INDISPONIVEL') {
+        return _erro(400, 'VALIDACAO', 'Dados inválidos.', [
+          {
+            'campo': 'votos',
+            'mensagem': 'O voto deve ser DISPONIVEL ou INDISPONIVEL.',
+          },
+        ]);
+      }
+      porOpcao[opcaoId] = status;
+    }
+
+    final enqueteId = enquete['id'] as int;
+    final idsValidos = _opcoesEnquete
+        .where((item) => item['enqueteId'] == enqueteId)
+        .map((item) => item['id'] as int)
+        .toSet();
+    final invalidos = porOpcao.keys.where((id) => !idsValidos.contains(id));
+    if (invalidos.isNotEmpty) {
+      return _erro(400, 'VALIDACAO', 'Dados inválidos.', [
+        {
+          'campo': 'votos',
+          'mensagem':
+              'Opções inválidas para esta combinação: ${invalidos.join(', ')}.',
+        },
+      ]);
+    }
+
+    for (final voto in porOpcao.entries) {
+      Map<String, dynamic>? existente;
+      for (final item in _votosEnquete) {
+        final mapa = item as Map<String, dynamic>;
+        if (mapa['opcaoId'] == voto.key && mapa['usuarioId'] == meuId) {
+          existente = mapa;
+          break;
+        }
+      }
+      if (existente == null) {
+        _votosEnquete.add({
+          'opcaoId': voto.key,
+          'usuarioId': meuId,
+          'status': voto.value,
+        });
+      } else {
+        existente['status'] = voto.value;
+      }
+    }
+
+    await _salva();
+    return MockResponse(200, _consultaEnqueteJson(enquete, meuId));
+  }
+
+  MockResponse _melhorDiaEnquete(String? token, int eventoId) {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final evento = _eventoPorId(eventoId);
+    if (evento == null || !_eventoVisivel(evento, meuId)) {
+      return _erro(404, 'EVENTO_NAO_ENCONTRADO', 'Evento não encontrado.');
+    }
+    final enquete = _enqueteDoEvento(eventoId);
+    if (enquete == null) {
+      return _erro(
+        404,
+        'ENQUETE_NAO_ENCONTRADA',
+        'Combinação de dias não encontrada.',
+      );
+    }
+
+    final consulta = _consultaEnqueteJson(enquete, meuId);
+    return MockResponse(200, {'melhorDia': consulta['melhorDia']});
+  }
+
+  Future<MockResponse> _aplicarMelhorDia(String? token, int eventoId) async {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final evento = _eventoPorId(eventoId);
+    if (evento == null || !_eventoVisivel(evento, meuId)) {
+      return _erro(404, 'EVENTO_NAO_ENCONTRADO', 'Evento não encontrado.');
+    }
+    if (evento['criadorId'] != meuId) {
+      return _erro(
+        403,
+        'SEM_PERMISSAO',
+        'Você não tem permissão para esta ação.',
+      );
+    }
+    if (evento['status'] != 'RASCUNHO') {
+      return _erro(
+        409,
+        'EVENTO_NAO_ESTA_EM_RASCUNHO',
+        'A combinação só pode ser alterada enquanto o evento está em rascunho.',
+      );
+    }
+
+    final enquete = _enqueteDoEvento(eventoId);
+    if (enquete == null) {
+      return _erro(
+        404,
+        'ENQUETE_NAO_ENCONTRADA',
+        'Combinação de dias não encontrada.',
+      );
+    }
+
+    final consulta = _consultaEnqueteJson(enquete, meuId);
+    final melhor = consulta['melhorDia'];
+    if (melhor is! Map || (_comoInt(melhor['disponiveis']) ?? 0) == 0) {
+      return _erro(
+        409,
+        'SEM_DISPONIBILIDADE',
+        'Nenhum participante marcou disponibilidade para a melhor data.',
+      );
+    }
+
+    final data = _diaUtc(melhor['data'] as String);
+    final inicio = (melhor['horaInicio'] as String).split(':');
+    final fim = (melhor['horaFim'] as String).split(':');
+    final offset = _comoInt(enquete['fusoOffsetMinutos']) ?? 0;
+
+    final inicioUtc = DateTime.utc(
+      data.year,
+      data.month,
+      data.day,
+      int.parse(inicio[0]),
+      int.parse(inicio[1]),
+    ).subtract(Duration(minutes: offset));
+    final fimUtc = DateTime.utc(
+      data.year,
+      data.month,
+      data.day,
+      int.parse(fim[0]),
+      int.parse(fim[1]),
+    ).subtract(Duration(minutes: offset));
+
+    evento['inicioEm'] = _isoMock(inicioUtc);
+    evento['fimEm'] = _isoMock(fimUtc);
+    evento['status'] = 'CONFIRMADO';
+    evento['atualizadoEm'] = _agoraIso();
+    await _salva();
+
+    return MockResponse(200, {
+      'evento': _eventoJson(evento, meuId),
+      ...consulta,
+    });
+  }
+
+  Map<String, dynamic> _consultaEnqueteJson(
+    Map<String, dynamic> enquete,
+    int eu,
+  ) {
+    final enqueteId = enquete['id'] as int;
+    final opcoes = _opcoesEnquete
+        .where((item) => item['enqueteId'] == enqueteId)
+        .map((item) {
+          final opcao = Map<String, dynamic>.from(item as Map);
+          final votos = _votosEnquete
+              .where((voto) => voto['opcaoId'] == opcao['id'])
+              .toList();
+          var disponiveis = 0;
+          var indisponiveis = 0;
+          String? meuVoto;
+          for (final voto in votos) {
+            if (voto['status'] == 'DISPONIVEL') {
+              disponiveis++;
+            } else if (voto['status'] == 'INDISPONIVEL') {
+              indisponiveis++;
+            }
+            if (voto['usuarioId'] == eu) {
+              meuVoto = voto['status'] as String?;
+            }
+          }
+          final total = disponiveis + indisponiveis;
+          return <String, dynamic>{
+            'id': opcao['id'],
+            'data': opcao['data'],
+            'horaInicio': opcao['horaInicio'],
+            'horaFim': opcao['horaFim'],
+            'disponiveis': disponiveis,
+            'indisponiveis': indisponiveis,
+            'totalVotos': total,
+            'percentual': total == 0 ? 0 : (disponiveis * 100 / total).round(),
+            'meuVoto': meuVoto,
+          };
+        })
+        .toList();
+
+    opcoes.sort((a, b) {
+      final porData = (a['data'] as String).compareTo(b['data'] as String);
+      if (porData != 0) return porData;
+      return (a['horaInicio'] as String).compareTo(b['horaInicio'] as String);
+    });
+
+    return {
+      'enquete': {
+        'id': enqueteId,
+        'eventoId': enquete['eventoId'],
+        'dataInicio': enquete['dataInicio'],
+        'dataFim': enquete['dataFim'],
+        'diasSemana': enquete['diasSemana'],
+        'horaInicio': enquete['horaInicio'],
+        'horaFim': enquete['horaFim'],
+        'fusoOffsetMinutos': enquete['fusoOffsetMinutos'],
+        'opcoes': opcoes,
+      },
+      'melhorDia': _melhorOpcaoMock(opcoes),
+    };
+  }
+
+  Map<String, dynamic>? _melhorOpcaoMock(List<Map<String, dynamic>> opcoes) {
+    if (opcoes.isEmpty) return null;
+
+    final agora = DateTime.now().toUtc();
+    final hoje = DateTime.utc(agora.year, agora.month, agora.day);
+    int distancia(Map<String, dynamic> opcao) {
+      return _diaUtc(opcao['data'] as String).difference(hoje).inDays;
+    }
+
+    var melhor = opcoes.first;
+    for (final opcao in opcoes.skip(1)) {
+      final disponiveisOpcao = _comoInt(opcao['disponiveis']) ?? 0;
+      final disponiveisMelhor = _comoInt(melhor['disponiveis']) ?? 0;
+      if (disponiveisOpcao > disponiveisMelhor) {
+        melhor = opcao;
+        continue;
+      }
+      if (disponiveisOpcao < disponiveisMelhor) continue;
+
+      final distanciaOpcao = distancia(opcao).abs();
+      final distanciaMelhor = distancia(melhor).abs();
+      if (distanciaOpcao < distanciaMelhor) {
+        melhor = opcao;
+        continue;
+      }
+      if (distanciaOpcao > distanciaMelhor) continue;
+
+      final futuraOpcao = distancia(opcao) >= 0;
+      final futuraMelhor = distancia(melhor) >= 0;
+      if (futuraOpcao && !futuraMelhor) {
+        melhor = opcao;
+      } else if (futuraOpcao == futuraMelhor &&
+          (opcao['data'] as String).compareTo(melhor['data'] as String) < 0) {
+        melhor = opcao;
+      }
+    }
+    return melhor;
+  }
+
+  Map<String, dynamic>? _enqueteDoEvento(int eventoId) {
+    for (final item in _enquetes) {
+      if (item['eventoId'] == eventoId) {
+        return item as Map<String, dynamic>;
+      }
+    }
+    return null;
+  }
+
+  String? _lerDiaMock(
+    dynamic valor,
+    String campo,
+    List<Map<String, String>> erros,
+  ) {
+    final texto = (valor ?? '').toString().trim();
+    final partes = texto.split('-');
+    if (partes.length != 3 ||
+        partes[0].length != 4 ||
+        partes[1].length != 2 ||
+        partes[2].length != 2) {
+      erros.add({
+        'campo': campo,
+        'mensagem': 'Informe a data no formato AAAA-MM-DD.',
+      });
+      return null;
+    }
+    final data = DateTime.tryParse('${texto}T00:00:00Z');
+    if (data == null || _isoDia(data) != texto) {
+      erros.add({'campo': campo, 'mensagem': 'Informe uma data válida.'});
+      return null;
+    }
+    return texto;
+  }
+
+  String? _lerHoraMock(
+    dynamic valor,
+    String campo,
+    List<Map<String, String>> erros,
+  ) {
+    final texto = (valor ?? '').toString().trim();
+    final partes = texto.split(':');
+    if (partes.length != 2 || partes[0].length != 2 || partes[1].length != 2) {
+      erros.add({
+        'campo': campo,
+        'mensagem': 'Informe o horário no formato HH:MM.',
+      });
+      return null;
+    }
+    final hora = int.tryParse(partes[0]);
+    final minuto = int.tryParse(partes[1]);
+    if (hora == null ||
+        minuto == null ||
+        hora < 0 ||
+        hora > 23 ||
+        minuto < 0 ||
+        minuto > 59) {
+      erros.add({
+        'campo': campo,
+        'mensagem': 'Informe o horário no formato HH:MM.',
+      });
+      return null;
+    }
+    return texto;
+  }
+
+  List<int> _lerDiasSemanaMock(dynamic valor, List<Map<String, String>> erros) {
+    if (valor is! List || valor.isEmpty) {
+      erros.add({
+        'campo': 'diasSemana',
+        'mensagem': 'Selecione ao menos um dia da semana.',
+      });
+      return const [];
+    }
+    final dias = <int>[];
+    for (final item in valor) {
+      final dia = _comoInt(item);
+      if (dia == null || dia < 1 || dia > 7) {
+        erros.add({
+          'campo': 'diasSemana',
+          'mensagem':
+              'Os dias da semana devem estar entre 1 (segunda) e 7 (domingo).',
+        });
+        continue;
+      }
+      if (!dias.contains(dia)) dias.add(dia);
+    }
+    dias.sort();
+    return dias;
+  }
+
+  int _lerOffsetMock(dynamic valor, List<Map<String, String>> erros) {
+    if (valor == null || valor == '') return 0;
+    final numero = _comoInt(valor);
+    if (numero == null || numero < -720 || numero > 840) {
+      erros.add({
+        'campo': 'fusoOffsetMinutos',
+        'mensagem': 'Informe o fuso em minutos entre -720 e 840.',
+      });
+      return 0;
+    }
+    return numero;
+  }
+
+  DateTime _diaUtc(String data) => DateTime.parse('${data}T00:00:00Z');
+
+  String _isoDia(DateTime data) =>
+      data.toUtc().toIso8601String().substring(0, 10);
 
   Map<String, dynamic> _eventoJson(Map<String, dynamic> evento, int eu) {
     final id = evento['id'] as int;
@@ -1540,6 +2552,11 @@ class MockBackend {
   List<dynamic> get _eventos => _dados['eventos'] as List<dynamic>;
   List<dynamic> get _convidadosEvento =>
       _dados['convidados_evento'] as List<dynamic>;
+  List<dynamic> get _enquetes => _dados['enquetes'] as List<dynamic>;
+  List<dynamic> get _opcoesEnquete => _dados['opcoes_enquete'] as List<dynamic>;
+  List<dynamic> get _votosEnquete => _dados['votos_enquete'] as List<dynamic>;
+  List<dynamic> get _conversas => _dados['conversas'] as List<dynamic>;
+  List<dynamic> get _mensagens => _dados['mensagens'] as List<dynamic>;
 
   Map<String, dynamic>? _usuarioPorId(int id) {
     for (final usuario in _usuarios) {

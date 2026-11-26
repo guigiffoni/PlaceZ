@@ -240,6 +240,245 @@ function lerPessoas(valor, erros) {
   return ids;
 }
 
+const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
+const RE_HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
+const LIMITE_DIAS_ENQUETE = 60;
+
+function lerDia(valor, campo, erros) {
+  const texto = String(valor == null ? '' : valor).trim();
+  if (!RE_DATA.test(texto)) {
+    erros.push({
+      campo,
+      mensagem: 'Informe a data no formato AAAA-MM-DD.',
+    });
+    return null;
+  }
+
+  const [ano, mes, dia] = texto.split('-').map(Number);
+  const data = new Date(Date.UTC(ano, mes - 1, dia));
+  if (
+    data.getUTCFullYear() !== ano ||
+    data.getUTCMonth() !== mes - 1 ||
+    data.getUTCDate() !== dia
+  ) {
+    erros.push({ campo, mensagem: 'Informe uma data válida.' });
+    return null;
+  }
+  return texto;
+}
+
+function lerHora(valor, campo, erros) {
+  const texto = String(valor == null ? '' : valor).trim();
+  if (!RE_HORA.test(texto)) {
+    erros.push({ campo, mensagem: 'Informe o horário no formato HH:MM.' });
+    return null;
+  }
+  return texto;
+}
+
+function lerDiasSemana(valor, erros) {
+  if (!Array.isArray(valor) || valor.length === 0) {
+    erros.push({
+      campo: 'diasSemana',
+      mensagem: 'Selecione ao menos um dia da semana.',
+    });
+    return [];
+  }
+
+  const dias = [];
+  for (const item of valor) {
+    const dia = Number(item);
+    if (!Number.isInteger(dia) || dia < 1 || dia > 7) {
+      erros.push({
+        campo: 'diasSemana',
+        mensagem: 'Os dias da semana devem estar entre 1 (segunda) e 7 (domingo).',
+      });
+      continue;
+    }
+    if (!dias.includes(dia)) dias.push(dia);
+  }
+  dias.sort((a, b) => a - b);
+  return dias;
+}
+
+function lerOffsetFuso(valor, erros) {
+  if (valor === undefined || valor === null || valor === '') return 0;
+  const numero = Number(valor);
+  if (!Number.isInteger(numero) || numero < -720 || numero > 840) {
+    erros.push({
+      campo: 'fusoOffsetMinutos',
+      mensagem: 'Informe o fuso em minutos entre -720 e 840.',
+    });
+    return 0;
+  }
+  return numero;
+}
+
+function diaSemanaIso(data) {
+  return ((data.getUTCDay() + 6) % 7) + 1;
+}
+
+function formataDia(data) {
+  return data.toISOString().slice(0, 10);
+}
+
+function diasDoIntervalo(dataInicio, dataFim) {
+  const [anoInicio, mesInicio, diaInicio] = dataInicio.split('-').map(Number);
+  const [anoFim, mesFim, diaFim] = dataFim.split('-').map(Number);
+  const cursor = new Date(Date.UTC(anoInicio, mesInicio - 1, diaInicio));
+  const limite = new Date(Date.UTC(anoFim, mesFim - 1, diaFim));
+  const dias = [];
+  while (cursor <= limite) {
+    dias.push(new Date(cursor.getTime()));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dias;
+}
+
+function lerVotos(valor, erros) {
+  if (!Array.isArray(valor) || valor.length === 0) {
+    erros.push({
+      campo: 'votos',
+      mensagem: 'Informe ao menos um voto de disponibilidade.',
+    });
+    return [];
+  }
+
+  const porOpcao = new Map();
+  for (const item of valor) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      erros.push({ campo: 'votos', mensagem: 'Voto inválido.' });
+      continue;
+    }
+    const opcaoId = Number(item.opcaoId);
+    const status = String(item.status || '').trim().toUpperCase();
+    if (!Number.isInteger(opcaoId) || opcaoId <= 0) {
+      erros.push({
+        campo: 'votos',
+        mensagem: 'Informe uma opção de data válida.',
+      });
+      continue;
+    }
+    if (status !== 'DISPONIVEL' && status !== 'INDISPONIVEL') {
+      erros.push({
+        campo: 'votos',
+        mensagem: 'O voto deve ser DISPONIVEL ou INDISPONIVEL.',
+      });
+      continue;
+    }
+    porOpcao.set(opcaoId, status);
+  }
+
+  return Array.from(porOpcao, ([opcaoId, status]) => ({ opcaoId, status }));
+}
+
+function melhorOpcao(opcoes) {
+  if (!opcoes || opcoes.length === 0) return null;
+
+  const agora = new Date();
+  const hoje = Date.UTC(
+    agora.getUTCFullYear(),
+    agora.getUTCMonth(),
+    agora.getUTCDate(),
+  );
+  const distancia = (opcao) => {
+    const [ano, mes, dia] = opcao.data.split('-').map(Number);
+    return Date.UTC(ano, mes - 1, dia) - hoje;
+  };
+
+  let melhor = opcoes[0];
+  for (const opcao of opcoes.slice(1)) {
+    if (opcao.disponiveis > melhor.disponiveis) {
+      melhor = opcao;
+      continue;
+    }
+    if (opcao.disponiveis < melhor.disponiveis) continue;
+
+    const distanciaOpcao = Math.abs(distancia(opcao));
+    const distanciaMelhor = Math.abs(distancia(melhor));
+    if (distanciaOpcao < distanciaMelhor) {
+      melhor = opcao;
+      continue;
+    }
+    if (distanciaOpcao > distanciaMelhor) continue;
+
+    // Empate exato: prefere a data futura e, depois, a mais cedo.
+    const futuraOpcao = distancia(opcao) >= 0;
+    const futuraMelhor = distancia(melhor) >= 0;
+    if (futuraOpcao && !futuraMelhor) {
+      melhor = opcao;
+    } else if (futuraOpcao === futuraMelhor && opcao.data < melhor.data) {
+      melhor = opcao;
+    }
+  }
+  return melhor;
+}
+
+async function carregaEnquete(conexao, eventoId, eu) {
+  const resultado = await conexao.execute(
+    `SELECT id, evento_id,
+            TO_CHAR(data_inicio, 'YYYY-MM-DD') AS data_inicio,
+            TO_CHAR(data_fim, 'YYYY-MM-DD') AS data_fim,
+            dias_semana, hora_inicio, hora_fim, fuso_offset_minutos
+       FROM enquete_disponibilidade
+      WHERE evento_id = :eventoId`,
+    { eventoId },
+  );
+  const linha = (resultado.rows || [])[0];
+  if (!linha) return null;
+
+  const opcoesResultado = await conexao.execute(
+    `SELECT o.id,
+            TO_CHAR(o.data_opcao, 'YYYY-MM-DD') AS data_opcao,
+            o.hora_inicio,
+            o.hora_fim,
+            NVL(SUM(CASE WHEN v.status = 'DISPONIVEL' THEN 1 ELSE 0 END), 0)
+              AS disponiveis,
+            NVL(SUM(CASE WHEN v.status = 'INDISPONIVEL' THEN 1 ELSE 0 END), 0)
+              AS indisponiveis,
+            MAX(CASE WHEN v.usuario_id = :eu THEN v.status END) AS meu_voto
+       FROM opcao_disponibilidade o
+       LEFT JOIN voto_disponibilidade v ON v.opcao_id = o.id
+      WHERE o.enquete_id = :enqueteId
+      GROUP BY o.id, o.data_opcao, o.hora_inicio, o.hora_fim
+      ORDER BY o.data_opcao, o.hora_inicio`,
+    { enqueteId: linha.ID, eu },
+  );
+
+  const opcoes = (opcoesResultado.rows || []).map((opcao) => {
+    const disponiveis = Number(opcao.DISPONIVEIS || 0);
+    const indisponiveis = Number(opcao.INDISPONIVEIS || 0);
+    const totalVotos = disponiveis + indisponiveis;
+    return {
+      id: opcao.ID,
+      data: opcao.DATA_OPCAO,
+      horaInicio: opcao.HORA_INICIO,
+      horaFim: opcao.HORA_FIM,
+      disponiveis,
+      indisponiveis,
+      totalVotos,
+      percentual:
+        totalVotos === 0 ? 0 : Math.round((disponiveis * 100) / totalVotos),
+      meuVoto: opcao.MEU_VOTO || null,
+    };
+  });
+
+  return {
+    id: linha.ID,
+    eventoId: linha.EVENTO_ID,
+    dataInicio: linha.DATA_INICIO,
+    dataFim: linha.DATA_FIM,
+    diasSemana: String(linha.DIAS_SEMANA || '')
+      .split(',')
+      .map((item) => Number(item))
+      .filter((item) => Number.isInteger(item) && item >= 1 && item <= 7),
+    horaInicio: linha.HORA_INICIO,
+    horaFim: linha.HORA_FIM,
+    fusoOffsetMinutos: Number(linha.FUSO_OFFSET_MINUTOS || 0),
+    opcoes,
+  };
+}
+
 function localDaLinha(linha) {
   if (!linha.LOCAL_ID) return null;
   return {
@@ -501,9 +740,16 @@ function responderPorCodigo(res, status, codigo) {
     EVENTO_NAO_ENCONTRADO: 'Evento não encontrado.',
     SEM_PERMISSAO: 'Você não tem permissão para esta ação.',
     EVENTO_CANCELADO: 'Este evento foi cancelado.',
+    EVENTO_NAO_CONFIRMADO: 'O evento ainda não foi confirmado.',
     CONVIDADO_NAO_ENCONTRADO: 'Convidado não encontrado.',
     NAO_REMOVER_CRIADOR: 'O criador não pode ser removido do próprio evento.',
     CRIADOR_RSVP_FIXO: 'O criador do evento é sempre considerado confirmado.',
+    ENQUETE_NAO_ENCONTRADA: 'Combinação de dias não encontrada.',
+    ENQUETE_EXISTENTE: 'Este evento já tem uma combinação de dias.',
+    EVENTO_NAO_ESTA_EM_RASCUNHO:
+      'A combinação só pode ser alterada enquanto o evento está em rascunho.',
+    SEM_DISPONIBILIDADE:
+      'Nenhum participante marcou disponibilidade para a melhor data.',
   };
   return responderErro(
     res,
@@ -555,7 +801,7 @@ router.get('/eventos', async (req, res) => {
          JOIN usuario u ON u.id = e.criador_id
          LEFT JOIN local l ON l.id = e.local_id
         WHERE ${VISIBILIDADE}
-          AND e.status <> 'CANCELADO'
+          AND e.status = 'CONFIRMADO'
           ${filtros}
         ORDER BY e.inicio_em ASC NULLS LAST, e.id ASC`,
       binds,
@@ -608,6 +854,31 @@ router.get('/calendario/pessoas-frequentes', autenticar, async (req, res) => {
   }
 });
 
+// GET /eventos/rascunhos
+router.get('/eventos/rascunhos', async (req, res) => {
+  const eu = req.usuario.ID;
+
+  try {
+    const resultado = await db.executar(
+      `SELECT ${CAMPOS_EVENTO}
+         FROM evento e
+         JOIN usuario u ON u.id = e.criador_id
+         LEFT JOIN local l ON l.id = e.local_id
+        WHERE ${VISIBILIDADE}
+          AND e.status = 'RASCUNHO'
+        ORDER BY e.criado_em DESC, e.id DESC`,
+      { eu },
+    );
+
+    const eventos = (resultado.rows || []).map((linha) =>
+      eventoDaLinha(linha, eu),
+    );
+    return res.status(200).json({ eventos });
+  } catch (erro) {
+    return tratarErro(res, erro, 'lista de rascunhos');
+  }
+});
+
 // POST /eventos
 router.post('/eventos', async (req, res) => {
   const eu = req.usuario.ID;
@@ -616,8 +887,8 @@ router.post('/eventos', async (req, res) => {
 
   const titulo = textoObrigatorio(corpo.titulo, 'titulo', 160, erros);
   const descricao = textoOpcional(corpo.descricao, 'descricao', 2000, erros);
-  const inicioEm = lerData(corpo.inicioEm, 'inicioEm', erros) ?? null;
-  const fimEm = lerData(corpo.fimEm, 'fimEm', erros) ?? null;
+  let inicioEm = lerData(corpo.inicioEm, 'inicioEm', erros) ?? null;
+  let fimEm = lerData(corpo.fimEm, 'fimEm', erros) ?? null;
   const local = lerLocal(corpo.local, erros) ?? null;
   const privado = lerBooleano(corpo.privado, 'privado', true, erros);
   const permitirMembrosConvidar = lerBooleano(
@@ -626,7 +897,18 @@ router.post('/eventos', async (req, res) => {
     false,
     erros,
   );
+  const rascunho = lerBooleano(corpo.rascunho, 'rascunho', false, erros);
   const convidadoIds = lerConvidados(corpo.convidadoIds, erros);
+
+  if (rascunho) {
+    inicioEm = null;
+    fimEm = null;
+  } else if (!inicioEm) {
+    erros.push({
+      campo: 'inicioEm',
+      mensagem: 'Informe a data de início do evento.',
+    });
+  }
 
   if (inicioEm && fimEm && fimEm < inicioEm) {
     erros.push({
@@ -649,7 +931,7 @@ router.post('/eventos', async (req, res) => {
             privado, permitir_membros_convidar, status)
          VALUES
            (:titulo, :descricao, :inicioEm, :fimEm, :localId, :eu,
-            :privado, :permitir, 'CONFIRMADO')
+            :privado, :permitir, :status)
          RETURNING id INTO :id`,
         {
           titulo,
@@ -660,6 +942,7 @@ router.post('/eventos', async (req, res) => {
           eu,
           privado: privado ? 'S' : 'N',
           permitir: permitirMembrosConvidar ? 'S' : 'N',
+          status: rascunho ? 'RASCUNHO' : 'CONFIRMADO',
           id: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
         },
       );
@@ -1148,6 +1431,9 @@ router.patch('/eventos/:id/rsvp', async (req, res) => {
       if (!contexto) {
         return { erro: { status: 404, codigo: 'EVENTO_NAO_ENCONTRADO' } };
       }
+      if (contexto.linha.STATUS === 'RASCUNHO') {
+        return { erro: { status: 409, codigo: 'EVENTO_NAO_CONFIRMADO' } };
+      }
       if (contexto.linha.STATUS !== 'CONFIRMADO') {
         return { erro: { status: 409, codigo: 'EVENTO_CANCELADO' } };
       }
@@ -1178,6 +1464,375 @@ router.patch('/eventos/:id/rsvp', async (req, res) => {
     return res.status(200).json({ evento: resposta.evento });
   } catch (erro) {
     return tratarErro(res, erro, 'resposta de RSVP');
+  }
+});
+
+// POST /eventos/:id/enquete
+router.post('/eventos/:id/enquete', async (req, res) => {
+  const eu = req.usuario.ID;
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return responderPorCodigo(res, 404, 'EVENTO_NAO_ENCONTRADO');
+  }
+
+  const corpo = req.body || {};
+  const erros = [];
+  const dataInicio = lerDia(corpo.dataInicio, 'dataInicio', erros);
+  const dataFim = lerDia(corpo.dataFim, 'dataFim', erros);
+  const diasSemana = lerDiasSemana(corpo.diasSemana, erros);
+  const horaInicio = lerHora(corpo.horaInicio, 'horaInicio', erros);
+  const horaFim = lerHora(corpo.horaFim, 'horaFim', erros);
+  const fusoOffsetMinutos = lerOffsetFuso(corpo.fusoOffsetMinutos, erros);
+
+  if (dataInicio && dataFim && dataFim < dataInicio) {
+    erros.push({
+      campo: 'dataFim',
+      mensagem: 'A data final deve ser igual ou posterior à inicial.',
+    });
+  }
+  if (horaInicio && horaFim && horaFim <= horaInicio) {
+    erros.push({
+      campo: 'horaFim',
+      mensagem: 'O horário final deve ser posterior ao inicial.',
+    });
+  }
+  if (erros.length) return validacao(res, erros);
+
+  const dias = diasDoIntervalo(dataInicio, dataFim);
+  if (dias.length > LIMITE_DIAS_ENQUETE) {
+    return validacao(res, [
+      {
+        campo: 'dataFim',
+        mensagem: `O intervalo pode ter no máximo ${LIMITE_DIAS_ENQUETE} dias.`,
+      },
+    ]);
+  }
+  const opcoes = dias
+    .filter((data) => diasSemana.includes(diaSemanaIso(data)))
+    .map(formataDia);
+  if (opcoes.length === 0) {
+    return validacao(res, [
+      {
+        campo: 'diasSemana',
+        mensagem: 'Nenhuma data do intervalo corresponde aos dias escolhidos.',
+      },
+    ]);
+  }
+
+  try {
+    const resposta = await db.comConexao(async (conexao) => {
+      const oracledb = db.getOracle();
+      if (!oracledb) throw new db.BancoIndisponivelError();
+
+      const contexto = await contextoEvento(conexao, id, eu, {
+        bloquear: true,
+      });
+      if (!contexto) {
+        return { erro: { status: 404, codigo: 'EVENTO_NAO_ENCONTRADO' } };
+      }
+      if (!contexto.souCriador) {
+        return { erro: { status: 403, codigo: 'SEM_PERMISSAO' } };
+      }
+      if (contexto.linha.STATUS !== 'RASCUNHO') {
+        return {
+          erro: { status: 409, codigo: 'EVENTO_NAO_ESTA_EM_RASCUNHO' },
+        };
+      }
+
+      const existente = await conexao.execute(
+        `SELECT 1 AS existe
+           FROM enquete_disponibilidade
+          WHERE evento_id = :id`,
+        { id },
+      );
+      if ((existente.rows || []).length > 0) {
+        return { erro: { status: 409, codigo: 'ENQUETE_EXISTENTE' } };
+      }
+
+      const criado = await conexao.execute(
+        `INSERT INTO enquete_disponibilidade
+           (evento_id, data_inicio, data_fim, dias_semana,
+            hora_inicio, hora_fim, fuso_offset_minutos)
+         VALUES
+           (:id, TO_DATE(:dataInicio, 'YYYY-MM-DD'),
+            TO_DATE(:dataFim, 'YYYY-MM-DD'), :diasSemana,
+            :horaInicio, :horaFim, :fuso)
+         RETURNING id INTO :enqueteId`,
+        {
+          id,
+          dataInicio,
+          dataFim,
+          diasSemana: diasSemana.join(','),
+          horaInicio,
+          horaFim,
+          fuso: fusoOffsetMinutos,
+          enqueteId: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
+        },
+      );
+      const enqueteId = criado.outBinds.enqueteId[0];
+
+      for (const data of opcoes) {
+        await conexao.execute(
+          `INSERT INTO opcao_disponibilidade
+             (enquete_id, data_opcao, hora_inicio, hora_fim)
+           VALUES
+             (:enqueteId, TO_DATE(:data, 'YYYY-MM-DD'), :horaInicio, :horaFim)`,
+          { enqueteId, data, horaInicio, horaFim },
+        );
+      }
+
+      const enquete = await carregaEnquete(conexao, id, eu);
+      await conexao.commit();
+      return { enquete, melhorDia: melhorOpcao(enquete.opcoes) };
+    });
+
+    if (resposta.erro) {
+      return responderPorCodigo(
+        res,
+        resposta.erro.status,
+        resposta.erro.codigo,
+      );
+    }
+    return res.status(201).json(resposta);
+  } catch (erro) {
+    return tratarErro(res, erro, 'criação de combinação de dias');
+  }
+});
+
+// GET /eventos/:id/enquete
+router.get('/eventos/:id/enquete', async (req, res) => {
+  const eu = req.usuario.ID;
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return responderPorCodigo(res, 404, 'EVENTO_NAO_ENCONTRADO');
+  }
+
+  try {
+    const resposta = await db.comConexao(async (conexao) => {
+      const contexto = await contextoEvento(conexao, id, eu);
+      if (!contexto) {
+        return { erro: { status: 404, codigo: 'EVENTO_NAO_ENCONTRADO' } };
+      }
+      const enquete = await carregaEnquete(conexao, id, eu);
+      if (!enquete) {
+        return { erro: { status: 404, codigo: 'ENQUETE_NAO_ENCONTRADA' } };
+      }
+      return { enquete, melhorDia: melhorOpcao(enquete.opcoes) };
+    });
+
+    if (resposta.erro) {
+      return responderPorCodigo(
+        res,
+        resposta.erro.status,
+        resposta.erro.codigo,
+      );
+    }
+    return res.status(200).json(resposta);
+  } catch (erro) {
+    return tratarErro(res, erro, 'consulta de combinação de dias');
+  }
+});
+
+// PUT /eventos/:id/enquete/votos
+router.put('/eventos/:id/enquete/votos', async (req, res) => {
+  const eu = req.usuario.ID;
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return responderPorCodigo(res, 404, 'EVENTO_NAO_ENCONTRADO');
+  }
+
+  const erros = [];
+  const votos = lerVotos((req.body || {}).votos, erros);
+  if (erros.length) return validacao(res, erros);
+
+  try {
+    const resposta = await db.comConexao(async (conexao) => {
+      const contexto = await contextoEvento(conexao, id, eu);
+      if (!contexto) {
+        return { erro: { status: 404, codigo: 'EVENTO_NAO_ENCONTRADO' } };
+      }
+      if (contexto.linha.STATUS !== 'RASCUNHO') {
+        return {
+          erro: { status: 409, codigo: 'EVENTO_NAO_ESTA_EM_RASCUNHO' },
+        };
+      }
+
+      const enquete = await carregaEnquete(conexao, id, eu);
+      if (!enquete) {
+        return { erro: { status: 404, codigo: 'ENQUETE_NAO_ENCONTRADA' } };
+      }
+
+      const idsValidos = new Set(enquete.opcoes.map((opcao) => opcao.id));
+      const invalidos = votos
+        .filter((voto) => !idsValidos.has(voto.opcaoId))
+        .map((voto) => voto.opcaoId);
+      if (invalidos.length > 0) {
+        return {
+          validacao: [
+            {
+              campo: 'votos',
+              mensagem: `Opções inválidas para esta combinação: ${invalidos.join(', ')}.`,
+            },
+          ],
+        };
+      }
+
+      for (const voto of votos) {
+        const atualizado = await conexao.execute(
+          `UPDATE voto_disponibilidade
+              SET status = :status,
+                  atualizado_em = SYS_EXTRACT_UTC(SYSTIMESTAMP)
+            WHERE opcao_id = :opcaoId AND usuario_id = :eu`,
+          { status: voto.status, opcaoId: voto.opcaoId, eu },
+        );
+        if (atualizado.rowsAffected === 0) {
+          await conexao.execute(
+            `INSERT INTO voto_disponibilidade
+               (opcao_id, usuario_id, status)
+             VALUES
+               (:opcaoId, :eu, :status)`,
+            { opcaoId: voto.opcaoId, eu, status: voto.status },
+          );
+        }
+      }
+
+      const atualizada = await carregaEnquete(conexao, id, eu);
+      await conexao.commit();
+      return {
+        enquete: atualizada,
+        melhorDia: melhorOpcao(atualizada.opcoes),
+      };
+    });
+
+    if (resposta.erro) {
+      return responderPorCodigo(
+        res,
+        resposta.erro.status,
+        resposta.erro.codigo,
+      );
+    }
+    if (resposta.validacao) return validacao(res, resposta.validacao);
+    return res.status(200).json(resposta);
+  } catch (erro) {
+    return tratarErro(res, erro, 'voto de disponibilidade');
+  }
+});
+
+// GET /eventos/:id/enquete/melhor-dia
+router.get('/eventos/:id/enquete/melhor-dia', async (req, res) => {
+  const eu = req.usuario.ID;
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return responderPorCodigo(res, 404, 'EVENTO_NAO_ENCONTRADO');
+  }
+
+  try {
+    const resposta = await db.comConexao(async (conexao) => {
+      const contexto = await contextoEvento(conexao, id, eu);
+      if (!contexto) {
+        return { erro: { status: 404, codigo: 'EVENTO_NAO_ENCONTRADO' } };
+      }
+      const enquete = await carregaEnquete(conexao, id, eu);
+      if (!enquete) {
+        return { erro: { status: 404, codigo: 'ENQUETE_NAO_ENCONTRADA' } };
+      }
+      return { melhorDia: melhorOpcao(enquete.opcoes) };
+    });
+
+    if (resposta.erro) {
+      return responderPorCodigo(
+        res,
+        resposta.erro.status,
+        resposta.erro.codigo,
+      );
+    }
+    return res.status(200).json(resposta);
+  } catch (erro) {
+    return tratarErro(res, erro, 'melhor dia da combinação');
+  }
+});
+
+// POST /eventos/:id/enquete/aplicar-melhor-dia
+router.post('/eventos/:id/enquete/aplicar-melhor-dia', async (req, res) => {
+  const eu = req.usuario.ID;
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return responderPorCodigo(res, 404, 'EVENTO_NAO_ENCONTRADO');
+  }
+
+  try {
+    const resposta = await db.comConexao(async (conexao) => {
+      const contexto = await contextoEvento(conexao, id, eu, {
+        bloquear: true,
+      });
+      if (!contexto) {
+        return { erro: { status: 404, codigo: 'EVENTO_NAO_ENCONTRADO' } };
+      }
+      if (!contexto.souCriador) {
+        return { erro: { status: 403, codigo: 'SEM_PERMISSAO' } };
+      }
+      if (contexto.linha.STATUS !== 'RASCUNHO') {
+        return {
+          erro: { status: 409, codigo: 'EVENTO_NAO_ESTA_EM_RASCUNHO' },
+        };
+      }
+
+      const enquete = await carregaEnquete(conexao, id, eu);
+      if (!enquete) {
+        return { erro: { status: 404, codigo: 'ENQUETE_NAO_ENCONTRADA' } };
+      }
+
+      const melhor = melhorOpcao(enquete.opcoes);
+      if (!melhor || melhor.disponiveis === 0) {
+        return { erro: { status: 409, codigo: 'SEM_DISPONIBILIDADE' } };
+      }
+
+      const [ano, mes, dia] = melhor.data.split('-').map(Number);
+      const [horaInicio, minutoInicio] = melhor.horaInicio.split(':').map(Number);
+      const [horaFim, minutoFim] = melhor.horaFim.split(':').map(Number);
+      const offset = enquete.fusoOffsetMinutos;
+      const inicioEm = new Date(
+        Date.UTC(ano, mes - 1, dia, horaInicio, minutoInicio) - offset * 60000,
+      );
+      const fimEm = new Date(
+        Date.UTC(ano, mes - 1, dia, horaFim, minutoFim) - offset * 60000,
+      );
+
+      await conexao.execute(
+        `UPDATE evento
+            SET inicio_em = :inicioEm,
+                fim_em = :fimEm,
+                status = 'CONFIRMADO',
+                atualizado_em = SYS_EXTRACT_UTC(SYSTIMESTAMP)
+          WHERE id = :id`,
+        { inicioEm, fimEm, id },
+      );
+
+      const evento = await carregaEventoDetalhado(conexao, id, eu);
+      const atualizada = await carregaEnquete(conexao, id, eu);
+      await conexao.commit();
+      return {
+        evento,
+        enquete: atualizada,
+        melhorDia: melhorOpcao(atualizada.opcoes),
+      };
+    });
+
+    if (resposta.erro) {
+      return responderPorCodigo(
+        res,
+        resposta.erro.status,
+        resposta.erro.codigo,
+      );
+    }
+    return res.status(200).json(resposta);
+  } catch (erro) {
+    return tratarErro(res, erro, 'aplicação do melhor dia');
   }
 });
 
