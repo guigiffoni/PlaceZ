@@ -198,6 +198,36 @@ class EventsController extends ChangeNotifier {
     }, recarregar: true);
   }
 
+  Future<String?> atualizarImagemEvento(
+    int eventoId,
+    List<int> bytes,
+    String mime,
+  ) async {
+    try {
+      await _repositorio.atualizarImagem(eventoId, bytes, mime);
+      final evento = await _repositorio.detalhar(eventoId);
+      await _aplicarEvento(evento);
+      return null;
+    } on ApiException catch (erro) {
+      return _mensagemDoErro(erro);
+    } catch (erro) {
+      return 'Não foi possível salvar a imagem: $erro';
+    }
+  }
+
+  Future<String?> removerImagemEvento(int eventoId) async {
+    try {
+      await _repositorio.removerImagem(eventoId);
+      final evento = await _repositorio.detalhar(eventoId);
+      await _aplicarEvento(evento);
+      return null;
+    } on ApiException catch (erro) {
+      return _mensagemDoErro(erro);
+    } catch (erro) {
+      return 'Não foi possível remover a imagem: $erro';
+    }
+  }
+
   Future<String?> cancelar(int id) {
     return _executar(
       () async {

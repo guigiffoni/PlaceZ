@@ -1,106 +1,126 @@
 import 'package:flutter/material.dart';
 
+import '../tema.dart';
+
 class TelaSobre extends StatelessWidget {
   const TelaSobre({super.key});
 
-  // @override
-  // Widget build(BuildContext context) {
-  //   return showLicensePage(
-  //     context: context, 
-  //     applicationName: 'Placez',
-  //     applicationVersion: '1.0.0'
-  //   );
-  // }
-
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        title: const Text(
-          "Sobre o App",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
+      appBar: AppBar(title: const Text('Sobre o PlaceZ')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+        children: [
+          Center(
+            child: ClipRRect(
+              borderRadius: PlacezTokens.bordaLg,
+              child: Image.asset(
+                'assets/logo_principal.jpg',
+                height: 150,
+                fit: BoxFit.cover,
+              ),
+            ),
           ),
-        ),
-      ),
-
-      body: const Padding(
-        padding: EdgeInsets.all(28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Aplicativo desenvolvido por:",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+          const SizedBox(height: PlacezTokens.espXl),
+          Text(
+            'Encontros mais fáceis entre amigos',
+            style: theme.textTheme.titleLarge,
+          ),
+          const SizedBox(height: PlacezTokens.espSm),
+          Text(
+            'O PlaceZ auxilia grupos na organização de encontros e eventos, '
+            'permitindo consultar lugares, combinar datas e conversar com os '
+            'participantes.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: PlacezTokens.espXl),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(PlacezTokens.espLg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.school_outlined,
+                        size: 20,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: PlacezTokens.espSm),
+                      Text(
+                        'Projeto acadêmico',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: PlacezTokens.espSm),
+                  Text(
+                    'Criado no segundo semestre de 2026 para a disciplina de '
+                    'Desenvolvimento Móvel, com o intuito de facilitar o '
+                    'encontro entre amigos.',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
               ),
             ),
-
-            SizedBox(height: 12),
-            Text(
-              "Fulano 1\n"
-              "Fulano 2\n"
-              "Fulano 3",
-              style: TextStyle(
-                fontSize: 15,
-                height: 1.7,
+          ),
+          const SizedBox(height: PlacezTokens.espMd),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(PlacezTokens.espLg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.people_outline,
+                        size: 20,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: PlacezTokens.espSm),
+                      Text(
+                        'Desenvolvido por',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: PlacezTokens.espSm),
+                  Text(
+                    'Fulano 1\nFulano 2\nFulano 3',
+                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.7),
+                  ),
+                ],
               ),
             ),
-
-            SizedBox(height: 35),
-            Image(image: AssetImage("assets/logo_principal.jpg")),
-
-            Text(
-              "Sobre o PlaceZ",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+          ),
+          const SizedBox(height: PlacezTokens.espLg),
+          Text(
+            'Fotos ilustrativas do catálogo: Unsplash.',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: PlacezTokens.espXl),
+          Center(
+            child: Text(
+              'MIT License',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-
-            SizedBox(height: 12),
-
-            Text(
-              "Criado no segundo semestre de 2026 para a disciplina "
-              "de Desenvolvimento Móvel, com o intuito de facilitar "
-              "o encontro entre amigos.",
-              style: TextStyle(
-                fontSize: 15,
-                height: 1.5,
-              ),
-            ),
-
-            SizedBox(height: 25),
-
-            Text(
-              "O PlaceZ auxilia grupos na organização de encontros "
-              "e eventos, permitindo consultar lugares, organizar "
-              "datas e facilitar a comunicação entre os participantes.",
-              style: TextStyle(
-                fontSize: 15,
-                height: 1.5,
-              ),
-            ),
-
-            Spacer(),
-
-            Center(
-              child: Text(
-                "MIT License",
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
-              ),
-            ),
-
-            SizedBox(height: 20),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

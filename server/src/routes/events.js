@@ -11,6 +11,41 @@ const router = express.Router();
 // caindo no 404 global.
 router.use('/eventos', autenticar);
 
+const MIMES_IMAGEM_EVENTO = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+const LIMITE_IMAGEM_EVENTO = 600 * 1024;
+
+function mimeDaImagem(buffer) {
+  if (
+    buffer.length >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  ) {
+    return 'image/jpeg';
+  }
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    return 'image/png';
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer.toString('ascii', 0, 4) === 'RIFF' &&
+    buffer.toString('ascii', 8, 12) === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  return null;
+}
+
 const CAMPOS_EVENTO = `
   e.id,
   e.titulo,
@@ -21,6 +56,8 @@ const CAMPOS_EVENTO = `
   e.privado,
   e.permitir_membros_convidar,
   e.status,
+  CASE WHEN e.imagem IS NOT NULL THEN 1 ELSE 0 END AS tem_imagem,
+  e.imagem_atualizada_em,
   e.criado_em,
   e.atualizado_em,
   l.id                    AS local_id,
@@ -511,6 +548,8 @@ function eventoDaLinha(linha, eu) {
     privado: linha.PRIVADO === 'S',
     permitirMembrosConvidar: linha.PERMITIR_MEMBROS_CONVIDAR === 'S',
     status: linha.STATUS,
+    temImagem: Number(linha.TEM_IMAGEM || 0) === 1,
+    imagemAtualizadaEm: iso(linha.IMAGEM_ATUALIZADA_EM),
     criadoEm: iso(linha.CRIADO_EM),
     atualizadoEm: iso(linha.ATUALIZADO_EM),
     meuRsvp: linha.MEU_RSVP || null,
@@ -750,6 +789,7 @@ function responderPorCodigo(res, status, codigo) {
       'A combinação só pode ser alterada enquanto o evento está em rascunho.',
     SEM_DISPONIBILIDADE:
       'Nenhum participante marcou disponibilidade para a melhor data.',
+    IMAGEM_NAO_ENCONTRADA: 'Este evento ainda não tem imagem.',
   };
   return responderErro(
     res,
@@ -983,6 +1023,38 @@ router.post('/eventos', async (req, res) => {
   }
 });
 
+// GET /eventos/gerenciaveis  (eventos em que o usuário pode trocar o local)
+router.get('/eventos/gerenciaveis', async (req, res) => {
+  const eu = req.usuario.ID;
+
+  try {
+    const resultado = await db.executar(
+      `SELECT e.id, e.titulo, e.inicio_em, e.status,
+              l.nome AS local_nome
+         FROM evento e
+         LEFT JOIN local l ON l.id = e.local_id
+        WHERE e.criador_id = :eu
+          AND e.status <> 'CANCELADO'
+        ORDER BY CASE e.status WHEN 'RASCUNHO' THEN 0 ELSE 1 END,
+                 e.inicio_em ASC NULLS LAST,
+                 e.id DESC`,
+      { eu },
+    );
+
+    const eventos = (resultado.rows || []).map((linha) => ({
+      id: linha.ID,
+      titulo: linha.TITULO,
+      inicioEm: iso(linha.INICIO_EM),
+      status: linha.STATUS,
+      localNome: linha.LOCAL_NOME || null,
+    }));
+
+    return res.status(200).json({ eventos });
+  } catch (erro) {
+    return tratarErro(res, erro, 'eventos gerenciáveis');
+  }
+});
+
 // GET /eventos/:id
 router.get('/eventos/:id', async (req, res) => {
   const eu = req.usuario.ID;
@@ -1002,6 +1074,205 @@ router.get('/eventos/:id', async (req, res) => {
     return res.status(200).json({ evento });
   } catch (erro) {
     return tratarErro(res, erro, 'detalhe de evento');
+  }
+});
+
+// GET /eventos/:id/imagem
+router.get('/eventos/:id/imagem', async (req, res) => {
+  const eu = req.usuario.ID;
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return responderPorCodigo(res, 404, 'EVENTO_NAO_ENCONTRADO');
+  }
+
+  try {
+    const resposta = await db.comConexao(async (conexao) => {
+      const contexto = await contextoEvento(conexao, id, eu);
+      if (!contexto) {
+        return { erro: { status: 404, codigo: 'EVENTO_NAO_ENCONTRADO' } };
+      }
+
+      const resultado = await conexao.execute(
+        `SELECT imagem, imagem_mime, imagem_atualizada_em
+           FROM evento
+          WHERE id = :id`,
+        { id },
+      );
+      const linha = (resultado.rows || [])[0];
+      let imagem = linha ? linha.IMAGEM : null;
+      if (imagem && typeof imagem.getData === 'function') {
+        imagem = await imagem.getData();
+      }
+      if (!imagem || imagem.length === 0) {
+        return { erro: { status: 404, codigo: 'IMAGEM_NAO_ENCONTRADA' } };
+      }
+
+      return {
+        imagem,
+        mime: linha.IMAGEM_MIME || 'image/jpeg',
+        atualizadaEm: linha.IMAGEM_ATUALIZADA_EM,
+      };
+    });
+
+    if (resposta.erro) {
+      return responderPorCodigo(
+        res,
+        resposta.erro.status,
+        resposta.erro.codigo,
+      );
+    }
+
+    res.set('Content-Type', resposta.mime);
+    res.set('Content-Length', String(resposta.imagem.length));
+    res.set('Cache-Control', 'private, max-age=300');
+    if (resposta.atualizadaEm) {
+      res.set(
+        'ETag',
+        `"${new Date(resposta.atualizadaEm).getTime()}"`,
+      );
+    }
+    return res.status(200).send(resposta.imagem);
+  } catch (erro) {
+    return tratarErro(res, erro, 'leitura da imagem do evento');
+  }
+});
+
+// PUT /eventos/:id/imagem
+router.put('/eventos/:id/imagem', async (req, res) => {
+  const eu = req.usuario.ID;
+  const id = Number(req.params.id);
+  const corpo = req.body || {};
+  const imagem = String(corpo.imagemBase64 || '').trim();
+  let mime = String(corpo.mime || 'image/jpeg').trim().toLowerCase();
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return responderPorCodigo(res, 404, 'EVENTO_NAO_ENCONTRADO');
+  }
+  if (!imagem) {
+    return validacao(res, [
+      { campo: 'imagemBase64', mensagem: 'Envie uma imagem.' },
+    ]);
+  }
+  if (!MIMES_IMAGEM_EVENTO.has(mime)) {
+    return validacao(res, [
+      { campo: 'mime', mensagem: 'Use image/jpeg, image/png ou image/webp.' },
+    ]);
+  }
+
+  const buffer = Buffer.from(imagem, 'base64');
+  if (buffer.length === 0 || buffer.length > LIMITE_IMAGEM_EVENTO) {
+    return validacao(res, [
+      {
+        campo: 'imagemBase64',
+        mensagem: 'A imagem deve ter no máximo 600 KB.',
+      },
+    ]);
+  }
+
+  const mimeDetectado = mimeDaImagem(buffer);
+  if (!mimeDetectado) {
+    return validacao(res, [
+      {
+        campo: 'imagemBase64',
+        mensagem: 'Envie uma imagem JPEG, PNG ou WebP válida.',
+      },
+    ]);
+  }
+  mime = mimeDetectado;
+
+  try {
+    const resposta = await db.comConexao(async (conexao) => {
+      const contexto = await contextoEvento(conexao, id, eu, {
+        bloquear: true,
+      });
+      if (!contexto) {
+        return { erro: { status: 404, codigo: 'EVENTO_NAO_ENCONTRADO' } };
+      }
+      if (!contexto.souCriador) {
+        return { erro: { status: 403, codigo: 'SEM_PERMISSAO' } };
+      }
+
+      await conexao.execute(
+        `UPDATE evento
+            SET imagem = :imagem,
+                imagem_mime = :mime,
+                imagem_atualizada_em = SYS_EXTRACT_UTC(SYSTIMESTAMP)
+          WHERE id = :id`,
+        { id, imagem: buffer, mime },
+      );
+      const atualizado = await conexao.execute(
+        `SELECT imagem_atualizada_em
+           FROM evento
+          WHERE id = :id`,
+        { id },
+      );
+      await conexao.commit();
+
+      return {
+        temImagem: true,
+        atualizadaEm: iso(
+          (atualizado.rows || [])[0]?.IMAGEM_ATUALIZADA_EM,
+        ),
+      };
+    });
+
+    if (resposta.erro) {
+      return responderPorCodigo(
+        res,
+        resposta.erro.status,
+        resposta.erro.codigo,
+      );
+    }
+    return res.status(200).json(resposta);
+  } catch (erro) {
+    return tratarErro(res, erro, 'gravação da imagem do evento');
+  }
+});
+
+// DELETE /eventos/:id/imagem
+router.delete('/eventos/:id/imagem', async (req, res) => {
+  const eu = req.usuario.ID;
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return responderPorCodigo(res, 404, 'EVENTO_NAO_ENCONTRADO');
+  }
+
+  try {
+    const resposta = await db.comConexao(async (conexao) => {
+      const contexto = await contextoEvento(conexao, id, eu, {
+        bloquear: true,
+      });
+      if (!contexto) {
+        return { erro: { status: 404, codigo: 'EVENTO_NAO_ENCONTRADO' } };
+      }
+      if (!contexto.souCriador) {
+        return { erro: { status: 403, codigo: 'SEM_PERMISSAO' } };
+      }
+
+      await conexao.execute(
+        `UPDATE evento
+            SET imagem = NULL,
+                imagem_mime = NULL,
+                imagem_atualizada_em = NULL
+          WHERE id = :id`,
+        { id },
+      );
+      await conexao.commit();
+      return {};
+    });
+
+    if (resposta.erro) {
+      return responderPorCodigo(
+        res,
+        resposta.erro.status,
+        resposta.erro.codigo,
+      );
+    }
+    return res.status(204).send();
+  } catch (erro) {
+    return tratarErro(res, erro, 'remoção da imagem do evento');
   }
 });
 

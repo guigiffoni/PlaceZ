@@ -8,7 +8,12 @@ class Local {
   final double? latitude;
   final double? longitude;
   final String? categoria;
+  final String? cidade;
   final double? distanciaMetros;
+  final String? descricao;
+  final String? faixaPreco;
+  final double? avaliacaoMedia;
+  final int? avaliacaoTotal;
 
   Local({
     this.id,
@@ -20,7 +25,12 @@ class Local {
     this.latitude,
     this.longitude,
     this.categoria,
+    this.cidade,
     this.distanciaMetros,
+    this.descricao,
+    this.faixaPreco,
+    this.avaliacaoMedia,
+    this.avaliacaoTotal,
   });
 
   Map<String, dynamic> toMap() {
@@ -49,7 +59,12 @@ class Local {
       latitude: _comoDouble(map['latitude']),
       longitude: _comoDouble(map['longitude']),
       categoria: _texto(map['categoria']),
+      cidade: _texto(map['cidade']),
       distanciaMetros: _comoDouble(map['distancia_metros']),
+      descricao: _texto(map['descricao']),
+      faixaPreco: _texto(map['faixa_preco']),
+      avaliacaoMedia: _comoDouble(map['avaliacao_media']),
+      avaliacaoTotal: _comoInt(map['avaliacao_total']),
     );
   }
 
@@ -65,8 +80,17 @@ class Local {
       latitude: _comoDouble(json['latitude']),
       longitude: _comoDouble(json['longitude']),
       categoria: _texto(json['categoria']),
+      cidade: _texto(json['cidade']),
       distanciaMetros: _comoDouble(
         json['distanciaMetros'] ?? json['distancia_metros'],
+      ),
+      descricao: _texto(json['descricao']),
+      faixaPreco: _texto(json['faixaPreco'] ?? json['faixa_preco']),
+      avaliacaoMedia: _comoDouble(
+        json['avaliacaoMedia'] ?? json['avaliacao_media'],
+      ),
+      avaliacaoTotal: _comoInt(
+        json['avaliacaoTotal'] ?? json['avaliacao_total'],
       ),
     );
   }

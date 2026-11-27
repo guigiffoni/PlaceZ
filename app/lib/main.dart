@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/auth/auth_controller.dart';
 import 'core/events/events_controller.dart';
 import 'core/notificacoes/notificacao_service.dart';
+import 'data/models/local.dart';
+import 'tema.dart';
 import 'ui/calendario.dart';
 import 'ui/pesquisa.dart';
 import 'ui/telas/cadastro.dart';
@@ -16,6 +20,7 @@ import 'ui/telas/login.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('pt_BR');
 
   // Carrega a sessão antes do primeiro frame para que o app já abra no
   // calendário sabendo se há usuário autenticado.
@@ -83,20 +88,21 @@ class _MainAppState extends State<MainApp> {
           title: "PlaceZ",
           debugShowCheckedModeBanner: false,
           navigatorKey: _navigatorKey,
+          locale: const Locale('pt', 'BR'),
+          supportedLocales: const [Locale('pt', 'BR')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           themeMode: _temaController.modoTema,
-          theme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: _temaController.seedCor,
-              brightness: Brightness.light,
-            ),
+          theme: construirTema(
+            seed: _temaController.seedCor,
+            brightness: Brightness.light,
           ),
-          darkTheme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: _temaController.seedCor,
-              brightness: Brightness.dark,
-            ),
+          darkTheme: construirTema(
+            seed: _temaController.seedCor,
+            brightness: Brightness.dark,
           ),
           home: BarraNavegacao(
             temaController: _temaController,
@@ -124,34 +130,42 @@ class BarraNavegacao extends StatefulWidget {
 
 class _BarraNavegacaoState extends State<BarraNavegacao> {
   int _currentPageIndex = 0;
+  bool _selecionandoLocal = false;
 
   late final EventsController _eventsController;
-  late final List<Widget> _widgetOptions;
+  final GlobalKey<TelaCadastroEventoState> _cadastroKey =
+      GlobalKey<TelaCadastroEventoState>();
 
   static const int _abaChat = 1;
   static const int _abaNovoEvento = 2;
+  static const int _abaPesquisa = 3;
+
+  static const List<String> _titulos = [
+    'PlaceZ',
+    'Conversas',
+    'Novo evento',
+    'Pesquisar lugares',
+    'Amigos',
+  ];
 
   @override
   void initState() {
     super.initState();
     _eventsController = EventsController(auth: widget.authController);
-    _widgetOptions = [
-      TelaCalendario(eventsController: _eventsController),
-      TelaChat(authController: widget.authController),
-      TelaCadastroEvento(eventsController: _eventsController),
-      const TelaPesquisa(),
-      TelaAmigos(authController: widget.authController),
-    ];
     widget.authController.addListener(_aoMudarAutenticacao);
   }
 
   void _aoMudarAutenticacao() {
-    final protegida =
-        _currentPageIndex == _abaChat || _currentPageIndex == _abaNovoEvento;
-    if (!protegida || widget.authController.autenticado) return;
+    if (widget.authController.autenticado) return;
     if (!mounted) return;
-    // Logout ou 401: não deixa a aba protegida aberta.
-    setState(() => _currentPageIndex = 0);
+    final eraSelecao = _selecionandoLocal;
+    setState(() {
+      _selecionandoLocal = false;
+      final protegida =
+          _currentPageIndex == _abaChat || _currentPageIndex == _abaNovoEvento;
+      // Logout ou 401: não deixa a aba protegida ou a seleção abertas.
+      if (protegida || eraSelecao) _currentPageIndex = 0;
+    });
   }
 
   @override
@@ -171,6 +185,28 @@ class _BarraNavegacaoState extends State<BarraNavegacao> {
     return resultado == true && widget.authController.autenticado;
   }
 
+  void _abrirCatalogoParaEvento() {
+    setState(() {
+      _selecionandoLocal = true;
+      _currentPageIndex = _abaPesquisa;
+    });
+  }
+
+  void _selecionarLocalParaEvento(Local local) {
+    _cadastroKey.currentState?.definirLocalSelecionado(local);
+    setState(() {
+      _selecionandoLocal = false;
+      _currentPageIndex = _abaNovoEvento;
+    });
+  }
+
+  void _cancelarSelecao() {
+    setState(() {
+      _selecionandoLocal = false;
+      _currentPageIndex = _abaNovoEvento;
+    });
+  }
+
   Future<void> _selecionarAba(int indice) async {
     final protegida = indice == _abaChat || indice == _abaNovoEvento;
 
@@ -183,7 +219,10 @@ class _BarraNavegacaoState extends State<BarraNavegacao> {
     }
 
     if (!mounted) return;
-    setState(() => _currentPageIndex = indice);
+    setState(() {
+      if (indice != _abaPesquisa) _selecionandoLocal = false;
+      _currentPageIndex = indice;
+    });
 
     // Ao voltar para o calendário, atualiza eventos e ranking sem exigir
     // reinício do app (inclusive após criar/editar um evento).
@@ -196,61 +235,99 @@ class _BarraNavegacaoState extends State<BarraNavegacao> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("PlaceZ"),
-        actions: [
-          IconButton(
-            onPressed: () {
-              // 👈 NOVO BOTÃO
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => TelaConfiguracoes(
-                    temaController: widget.temaController,
-                    authController: widget.authController,
-                  ),
+        title: Text(
+          _selecionandoLocal ? 'Escolher local' : _titulos[_currentPageIndex],
+        ),
+        actions: _selecionandoLocal
+            ? [
+                IconButton(
+                  tooltip: 'Cancelar seleção',
+                  onPressed: _cancelarSelecao,
+                  icon: const Icon(Icons.close),
                 ),
-              );
-            },
-            icon: const Icon(Icons.settings),
+              ]
+            : [
+                IconButton(
+                  tooltip: 'Configurações',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TelaConfiguracoes(
+                          temaController: widget.temaController,
+                          authController: widget.authController,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.settings_outlined),
+                ),
+                IconButton(
+                  tooltip: 'Sobre o PlaceZ',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const TelaSobre(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.info_outline),
+                ),
+              ],
+      ),
+
+      body: IndexedStack(
+        index: _currentPageIndex,
+        children: [
+          TelaCalendario(eventsController: _eventsController),
+          TelaChat(
+            authController: widget.authController,
+            ativo: _currentPageIndex == _abaChat,
           ),
-          IconButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const TelaSobre()),
-              );
-            },
-            icon: const Icon(Icons.info_outline),
+          TelaCadastroEvento(
+            key: _cadastroKey,
+            eventsController: _eventsController,
+            mostrarAppBar: false,
+            onBuscarNoCatalogo: _abrirCatalogoParaEvento,
           ),
+          TelaPesquisa(
+            authController: widget.authController,
+            modoSelecao: _selecionandoLocal,
+            onSelecionar: _selecionarLocalParaEvento,
+          ),
+          TelaAmigos(authController: widget.authController),
         ],
       ),
 
-      body: _widgetOptions[_currentPageIndex],
-
       bottomNavigationBar: NavigationBar(
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         selectedIndex: _currentPageIndex,
         onDestinationSelected: _selecionarAba,
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.calendar_month),
-            label: "Calendário",
+            icon: Icon(Icons.calendar_month_outlined),
+            selectedIcon: Icon(Icons.calendar_month),
+            label: 'Agenda',
           ),
           NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline),
-            label: "Chat",
+            selectedIcon: Icon(Icons.chat_bubble),
+            label: 'Chat',
           ),
           NavigationDestination(
-            icon: Icon(Icons.add),
-            label: "Adicionar evento",
+            icon: Icon(Icons.add_circle_outline),
+            selectedIcon: Icon(Icons.add_circle),
+            label: 'Novo',
           ),
           NavigationDestination(
             icon: Icon(Icons.search),
-            label: "Pesquisar lugares",
+            selectedIcon: Icon(Icons.saved_search),
+            label: 'Buscar',
           ),
           NavigationDestination(
             icon: Icon(Icons.people_outline),
-            label: "Amigos",
+            selectedIcon: Icon(Icons.people),
+            label: 'Amigos',
           ),
         ],
       ),

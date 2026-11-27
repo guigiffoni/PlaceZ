@@ -97,6 +97,25 @@ class ConversasController extends ChangeNotifier {
     }
   }
 
+  Future<String?> apagarConversa(Conversa conversa) async {
+    try {
+      await _repositorio.apagarConversa(conversa.id);
+      _conversas.removeWhere((item) => item.id == conversa.id);
+      await _cache.apagarConversa(conversa.id);
+      _erro = null;
+      notifyListeners();
+      return null;
+    } on ApiException catch (erro) {
+      _erro = erro.message;
+      notifyListeners();
+      return erro.message;
+    } catch (erro) {
+      _erro = 'Não foi possível apagar a conversa: $erro';
+      notifyListeners();
+      return _erro;
+    }
+  }
+
   Future<void> _carregarCache() async {
     try {
       final conversas = await _cache.carregarConversas();

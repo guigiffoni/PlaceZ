@@ -5,8 +5,14 @@ import '../core/chat/chat_repository.dart';
 import '../core/friends/friends_controller.dart';
 import '../core/network/api_exception.dart';
 import '../data/models/amizade.dart';
+import '../tema.dart';
 import 'telas/conversa.dart';
 import 'telas/login.dart';
+import 'telas/meu_qr.dart';
+import 'telas/scanner_qr.dart';
+import 'widgets/avatar_usuario.dart';
+import 'widgets/campo_busca.dart';
+import 'widgets/placez_componentes.dart';
 
 class TelaAmigos extends StatefulWidget {
   final AuthController authController;
@@ -21,6 +27,7 @@ class _TelaAmigosState extends State<TelaAmigos> {
   late final FriendsController _controller;
   final TextEditingController _buscaController = TextEditingController();
   bool _abrindoConversa = false;
+  String _filtroLocal = '';
 
   @override
   void initState() {
@@ -40,6 +47,7 @@ class _TelaAmigosState extends State<TelaAmigos> {
   void _aoMudarConta() {
     // Evita levar a busca de uma conta para a próxima após login/logout.
     _buscaController.clear();
+    _filtroLocal = '';
     _controller.limparBusca();
   }
 
@@ -54,9 +62,71 @@ class _TelaAmigosState extends State<TelaAmigos> {
     );
   }
 
+  Future<void> _abrirMeuQr() async {
+    if (!widget.authController.autenticado) {
+      await _abrirLogin();
+      if (!mounted || !widget.authController.autenticado) return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TelaMeuQr(authController: widget.authController),
+      ),
+    );
+  }
+
+  Future<void> _abrirScanner() async {
+    if (!widget.authController.autenticado) {
+      await _abrirLogin();
+      if (!mounted || !widget.authController.autenticado) return;
+    }
+
+    final alterou = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) =>
+            TelaScannerQr(authController: widget.authController),
+      ),
+    );
+    if (alterou == true && mounted) {
+      await _controller.carregar();
+    }
+  }
+
   Future<void> _buscar() async {
-    FocusScope.of(context).unfocus();
     await _controller.buscar(_buscaController.text);
+  }
+
+  void _aoDigitar(String valor) {
+    final termo = valor.trim().toLowerCase();
+    setState(() => _filtroLocal = termo);
+    if (_controller.resultados.isNotEmpty || _controller.termoBusca != null) {
+      _controller.limparBusca();
+    }
+  }
+
+  void _limparBusca() {
+    _buscaController.clear();
+    setState(() => _filtroLocal = '');
+    _controller.limparBusca();
+  }
+
+  List<Amigo> _filtrarAmigos(List<Amigo> origem) {
+    if (_filtroLocal.isEmpty) return origem;
+    return origem.where((amigo) {
+      final campos = <String>[
+        amigo.usuario.nome,
+        amigo.usuario.username,
+        if (amigo.localizacaoAproximada?.bairro != null)
+          amigo.localizacaoAproximada!.bairro,
+        if (amigo.localizacaoAproximada?.cidade != null)
+          amigo.localizacaoAproximada!.cidade!,
+      ].map((valor) => valor.toLowerCase());
+      return campos.any((valor) => valor.contains(_filtroLocal));
+    }).toList();
+  }
+
+  Future<void> _alternarFavorito(Amigo amigo) async {
+    final erro = await _controller.alternarFavorito(amigo);
+    if (erro != null && mounted) _avisar(erro);
   }
 
   Future<void> _abrirConversa(UsuarioResumo usuario) async {
@@ -191,7 +261,6 @@ class _TelaAmigosState extends State<TelaAmigos> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Amigos')),
       body: ListenableBuilder(
         listenable: Listenable.merge([widget.authController, _controller]),
         builder: (context, child) {
@@ -205,6 +274,12 @@ class _TelaAmigosState extends State<TelaAmigos> {
   }
 
   Widget _conteudo(BuildContext context) {
+    final amigosFiltrados = _filtrarAmigos(_controller.amigos);
+    final favoritos = amigosFiltrados.where((amigo) => amigo.favorito).toList();
+    final naoFavoritos = amigosFiltrados
+        .where((amigo) => !amigo.favorito)
+        .toList();
+
     final carregandoInicial =
         _controller.carregando &&
         _controller.amigos.isEmpty &&
@@ -219,8 +294,28 @@ class _TelaAmigosState extends State<TelaAmigos> {
       onRefresh: () => _controller.carregar(),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _abrirMeuQr,
+                  icon: const Icon(Icons.qr_code_2, size: 18),
+                  label: const Text('Meu QR'),
+                ),
+              ),
+              const SizedBox(width: PlacezTokens.espSm),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: _abrirScanner,
+                  icon: const Icon(Icons.qr_code_scanner, size: 18),
+                  label: const Text('Escanear'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: PlacezTokens.espLg),
           _campoBusca(),
           if (_controller.buscando) ...[
             const SizedBox(height: 8),
@@ -228,35 +323,50 @@ class _TelaAmigosState extends State<TelaAmigos> {
           ],
           if (_controller.erroBusca != null) ...[
             const SizedBox(height: 10),
-            _Aviso(mensagem: _controller.erroBusca!, erro: true),
+            AvisoPlacez(_controller.erroBusca!, erro: true),
           ],
           if (_controller.erro != null) ...[
             const SizedBox(height: 10),
-            _Aviso(
-              mensagem: _controller.erro!,
+            AvisoPlacez(
+              _controller.erro!,
               erro: true,
               onFechar: _controller.limparErro,
             ),
           ],
           if (_controller.mostrandoCache) ...[
             const SizedBox(height: 10),
-            const _Aviso(
-              mensagem:
-                  'Sem conexão com a API. Mostrando dados salvos no aparelho.',
+            const AvisoPlacez(
+              'Sem conexão com a API. Mostrando dados salvos no aparelho.',
             ),
           ],
           if (_controller.resultados.isNotEmpty) ...[
             const SizedBox(height: 18),
             _tituloSecao('Resultados da busca'),
             _cartao(_controller.resultados.map(_resultadoTile).toList()),
+            if (_controller.temMaisBusca)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _controller.buscandoMais
+                      ? null
+                      : _controller.carregarMaisBusca,
+                  icon: _controller.buscandoMais
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.expand_more, size: 18),
+                  label: const Text('Carregar mais'),
+                ),
+              ),
           ] else if (_controller.termoBusca != null &&
               _controller.termoBusca!.trim().length >= 2 &&
               !_controller.buscando &&
               _controller.erroBusca == null) ...[
             const SizedBox(height: 10),
-            _Aviso(
-              mensagem:
-                  'Nenhum usuário encontrado para "${_controller.termoBusca}".',
+            AvisoPlacez(
+              'Nenhum usuário encontrado para "${_controller.termoBusca}".',
             ),
           ],
           if (_controller.recebidas.isNotEmpty) ...[
@@ -269,22 +379,37 @@ class _TelaAmigosState extends State<TelaAmigos> {
             _tituloSecao('Solicitações enviadas'),
             _cartao(_controller.enviadas.map(_enviadaTile).toList()),
           ],
-          const SizedBox(height: 18),
-          _tituloSecao(
-            'Seus amigos',
-            sufixo: _controller.amigos.isEmpty
-                ? null
-                : '${_controller.amigos.length}',
-          ),
-          if (_controller.amigos.isEmpty)
+          if (_controller.amigos.isEmpty) ...[
+            const SizedBox(height: 18),
+            _tituloSecao('Seus amigos'),
             const _EstadoVazio(
               icone: Icons.group_outlined,
               titulo: 'Você ainda não tem amigos.',
               descricao:
                   'Busque por um username acima e envie uma solicitação.',
-            )
-          else
-            _cartao(_controller.amigos.map(_amigoTile).toList()),
+            ),
+          ] else if (amigosFiltrados.isEmpty) ...[
+            const SizedBox(height: 18),
+            _tituloSecao('Seus amigos'),
+            _EstadoVazio(
+              icone: Icons.search_off,
+              titulo: 'Nenhum amigo encontrado',
+              descricao:
+                  'Nenhum amigo corresponde a "$_filtroLocal". Tente outro '
+                  'nome, bairro ou cidade.',
+            ),
+          ] else ...[
+            if (favoritos.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              _tituloSecao('Fixados', sufixo: '${favoritos.length}'),
+              _cartao(favoritos.map(_amigoTile).toList()),
+            ],
+            if (naoFavoritos.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              _tituloSecao('Seus amigos', sufixo: '${naoFavoritos.length}'),
+              _cartao(naoFavoritos.map(_amigoTile).toList()),
+            ],
+          ],
           if (_controller.bloqueios.isNotEmpty) ...[
             const SizedBox(height: 18),
             _tituloSecao('Bloqueados'),
@@ -296,42 +421,17 @@ class _TelaAmigosState extends State<TelaAmigos> {
   }
 
   Widget _campoBusca() {
-    return Row(
-      children: [
-        Expanded(
-          child: TextField(
-            controller: _buscaController,
-            textInputAction: TextInputAction.search,
-            autocorrect: false,
-            onSubmitted: (_) => _buscar(),
-            onChanged: (valor) {
-              if (valor.trim().isEmpty) _controller.limparBusca();
-            },
-            decoration: InputDecoration(
-              hintText: 'Buscar por @username',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _buscaController.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Limpar busca',
-                      onPressed: () {
-                        _buscaController.clear();
-                        _controller.limparBusca();
-                      },
-                      icon: const Icon(Icons.close),
-                    ),
-              border: const OutlineInputBorder(),
-              isDense: true,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        IconButton.filled(
-          onPressed: _controller.buscando ? null : _buscar,
-          tooltip: 'Buscar',
-          icon: const Icon(Icons.search),
-        ),
-      ],
+    return CampoBusca(
+      controller: _buscaController,
+      hintText: 'Filtrar amigos ou buscar @username',
+      helperText:
+          'Digite para filtrar seus amigos · Enter ou o botão busca novas '
+          'pessoas',
+      onChanged: _aoDigitar,
+      onSearch: _controller.buscando ? null : _buscar,
+      onClear: _limparBusca,
+      enabled: !_controller.buscando,
+      searchTooltip: 'Buscar pessoas para adicionar',
     );
   }
 
@@ -478,32 +578,54 @@ class _TelaAmigosState extends State<TelaAmigos> {
   }
 
   Widget _amigoTile(Amigo amigo) {
+    final theme = Theme.of(context);
+    final bairro = amigo.localizacaoAproximada?.bairro;
     return ListTile(
       leading: _avatar(amigo.usuario),
       title: Text(amigo.usuario.nome),
-      subtitle: Text('${amigo.usuario.identificador} · toque para conversar'),
+      subtitle: Text(
+        '${amigo.usuario.identificador}'
+        '${bairro == null ? '' : ' · $bairro'} · toque para conversar',
+      ),
       onTap: _abrindoConversa ? null : () => _abrirConversa(amigo.usuario),
-      trailing: PopupMenuButton<String>(
-        enabled: !_controller.acaoEmAndamento,
-        tooltip: 'Opções',
-        onSelected: (valor) {
-          if (valor == 'remover') _remover(amigo.usuario);
-          if (valor == 'bloquear') _bloquear(amigo.usuario);
-        },
-        itemBuilder: (context) => const [
-          PopupMenuItem(
-            value: 'remover',
-            child: ListTile(
-              leading: Icon(Icons.person_remove_outlined),
-              title: Text('Remover amigo'),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: amigo.favorito ? 'Desafixar' : 'Fixar no topo',
+            onPressed: _controller.acaoEmAndamento
+                ? null
+                : () => _alternarFavorito(amigo),
+            icon: Icon(
+              amigo.favorito ? Icons.star : Icons.star_border,
+              color: amigo.favorito
+                  ? theme.colorScheme.tertiary
+                  : theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          PopupMenuItem(
-            value: 'bloquear',
-            child: ListTile(
-              leading: Icon(Icons.block),
-              title: Text('Bloquear'),
-            ),
+          PopupMenuButton<String>(
+            enabled: !_controller.acaoEmAndamento,
+            tooltip: 'Opções',
+            onSelected: (valor) {
+              if (valor == 'remover') _remover(amigo.usuario);
+              if (valor == 'bloquear') _bloquear(amigo.usuario);
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'remover',
+                child: ListTile(
+                  leading: Icon(Icons.person_remove_outlined),
+                  title: Text('Remover amigo'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'bloquear',
+                child: ListTile(
+                  leading: Icon(Icons.block),
+                  title: Text('Bloquear'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -525,7 +647,12 @@ class _TelaAmigosState extends State<TelaAmigos> {
   }
 
   Widget _avatar(UsuarioResumo usuario) {
-    return CircleAvatar(child: Text(usuario.iniciais));
+    return AvatarUsuario(
+      auth: widget.authController,
+      usuarioId: usuario.id,
+      nome: usuario.nome,
+      raio: 20,
+    );
   }
 }
 
@@ -616,57 +743,6 @@ class _EstadoVazio extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Aviso extends StatelessWidget {
-  final String mensagem;
-  final VoidCallback? onFechar;
-  final bool erro;
-
-  const _Aviso({required this.mensagem, this.onFechar, this.erro = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final fundo = erro
-        ? theme.colorScheme.errorContainer
-        : theme.colorScheme.secondaryContainer;
-    final frente = erro
-        ? theme.colorScheme.onErrorContainer
-        : theme.colorScheme.onSecondaryContainer;
-
-    return Container(
-      padding: EdgeInsets.fromLTRB(12, 10, onFechar == null ? 12 : 4, 10),
-      decoration: BoxDecoration(
-        color: fundo,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            erro ? Icons.error_outline : Icons.info_outline,
-            color: frente,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              mensagem,
-              style: theme.textTheme.bodySmall?.copyWith(color: frente),
-            ),
-          ),
-          if (onFechar != null)
-            IconButton(
-              onPressed: onFechar,
-              icon: Icon(Icons.close, size: 18, color: frente),
-              tooltip: 'Fechar aviso',
-              visualDensity: VisualDensity.compact,
-            ),
         ],
       ),
     );

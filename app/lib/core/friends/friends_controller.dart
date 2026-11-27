@@ -13,6 +13,9 @@ class FriendsController extends ChangeNotifier {
 
   bool _carregando = false;
   bool _buscando = false;
+  bool _buscandoMais = false;
+  bool _temMaisBusca = false;
+  int _paginaBusca = 1;
   bool _acaoEmAndamento = false;
   bool _mostrandoCache = false;
   bool _autenticadoAnterior = false;
@@ -47,6 +50,8 @@ class FriendsController extends ChangeNotifier {
 
   bool get carregando => _carregando;
   bool get buscando => _buscando;
+  bool get buscandoMais => _buscandoMais;
+  bool get temMaisBusca => _temMaisBusca;
   bool get acaoEmAndamento => _acaoEmAndamento;
   bool get mostrandoCache => _mostrandoCache;
   String? get erro => _erro;
@@ -117,6 +122,8 @@ class FriendsController extends ChangeNotifier {
 
     if (limpo.length < 2) {
       _resultados = [];
+      _paginaBusca = 1;
+      _temMaisBusca = false;
       _erroBusca = 'Digite ao menos 2 caracteres para buscar.';
       notifyListeners();
       return;
@@ -124,10 +131,15 @@ class FriendsController extends ChangeNotifier {
 
     _buscando = true;
     _erroBusca = null;
+    _paginaBusca = 1;
+    _temMaisBusca = false;
     notifyListeners();
 
     try {
-      _resultados = await _repositorio.buscar(limpo);
+      final resultado = await _repositorio.buscar(limpo);
+      _resultados = resultado.usuarios;
+      _paginaBusca = resultado.pagina;
+      _temMaisBusca = resultado.temMais;
     } on ApiException catch (erro) {
       if (auth.autenticado) {
         _erroBusca = _mensagemDoErro(erro);
@@ -142,10 +154,51 @@ class FriendsController extends ChangeNotifier {
     }
   }
 
+  Future<void> carregarMaisBusca() async {
+    final termo = _termoBusca;
+    if (termo == null ||
+        termo.length < 2 ||
+        _buscando ||
+        _buscandoMais ||
+        !_temMaisBusca) {
+      return;
+    }
+
+    _buscandoMais = true;
+    _erroBusca = null;
+    notifyListeners();
+
+    try {
+      final resultado = await _repositorio.buscar(
+        termo,
+        pagina: _paginaBusca + 1,
+      );
+      final ids = _resultados.map((item) => item.usuario.id).toSet();
+      _resultados = [
+        ..._resultados,
+        ...resultado.usuarios.where((item) => !ids.contains(item.usuario.id)),
+      ];
+      _paginaBusca = resultado.pagina;
+      _temMaisBusca = resultado.temMais;
+    } on ApiException catch (erro) {
+      if (auth.autenticado) {
+        _erroBusca = _mensagemDoErro(erro);
+      }
+    } catch (erro) {
+      _erroBusca = 'Não foi possível carregar mais usuários: $erro';
+    } finally {
+      _buscandoMais = false;
+      notifyListeners();
+    }
+  }
+
   void limparBusca() {
     _termoBusca = null;
     _resultados = [];
     _erroBusca = null;
+    _paginaBusca = 1;
+    _temMaisBusca = false;
+    _buscandoMais = false;
     notifyListeners();
   }
 
@@ -167,6 +220,39 @@ class FriendsController extends ChangeNotifier {
 
   Future<String?> remover(int usuarioId) {
     return _executar(() => _repositorio.remover(usuarioId));
+  }
+
+  Future<String?> alternarFavorito(Amigo amigo) async {
+    if (_acaoEmAndamento) return null;
+
+    final indice = _amigos.indexWhere(
+      (item) => item.usuario.id == amigo.usuario.id,
+    );
+    if (indice < 0) return null;
+
+    final anterior = _amigos[indice];
+    final desejado = !anterior.favorito;
+
+    _acaoEmAndamento = true;
+    _amigos[indice] = anterior.copyWith(favorito: desejado);
+    notifyListeners();
+
+    try {
+      final confirmado = desejado
+          ? await _repositorio.favoritar(anterior.usuario.id)
+          : await _repositorio.desfavoritar(anterior.usuario.id);
+      _amigos[indice] = anterior.copyWith(favorito: confirmado);
+      return null;
+    } on ApiException catch (erro) {
+      _amigos[indice] = anterior;
+      return _mensagemDoErro(erro);
+    } catch (erro) {
+      _amigos[indice] = anterior;
+      return 'Não foi possível atualizar o favorito: $erro';
+    } finally {
+      _acaoEmAndamento = false;
+      notifyListeners();
+    }
   }
 
   Future<String?> bloquear(int usuarioId) {

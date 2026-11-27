@@ -7,6 +7,7 @@ const config = require('./config');
 const db = require('./db');
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
+const locationsRoutes = require('./routes/locations');
 const friendsRoutes = require('./routes/friends');
 const eventsRoutes = require('./routes/events');
 const chatRoutes = require('./routes/chat');
@@ -16,10 +17,11 @@ const app = express();
 
 app.disable('x-powered-by');
 app.use(cors());
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({ limit: '1mb' }));
 
 app.use('/api/v1', healthRoutes);
 app.use('/api/v1', authRoutes);
+app.use('/api/v1', locationsRoutes);
 app.use('/api/v1', friendsRoutes);
 app.use('/api/v1', chatRoutes);
 app.use('/api/v1', eventsRoutes);

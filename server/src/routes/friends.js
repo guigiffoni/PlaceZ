@@ -102,6 +102,20 @@ router.get('/usuarios/busca', async (req, res) => {
     ]);
   }
 
+  const pagina = Number(req.query.pagina || 1);
+  const limite = Number(req.query.limite || 20);
+  const erros = [];
+  if (!Number.isInteger(pagina) || pagina < 1) {
+    erros.push({ campo: 'pagina', mensagem: 'Informe uma página válida.' });
+  }
+  if (!Number.isInteger(limite) || limite < 1 || limite > 50) {
+    erros.push({
+      campo: 'limite',
+      mensagem: 'Informe um limite entre 1 e 50.',
+    });
+  }
+  if (erros.length) return validacao(res, erros);
+
   try {
     const resultado = await db.executar(
       `SELECT u.id AS usuario_id,
@@ -123,11 +137,14 @@ router.get('/usuarios/busca', async (req, res) => {
                     OR (b.bloqueador_id = u.id AND b.bloqueado_id = :eu)
               )
         ORDER BY u.username
-        FETCH FIRST 20 ROWS ONLY`,
+        OFFSET ${(pagina - 1) * limite}
+        ROWS FETCH NEXT ${limite + 1} ROWS ONLY`,
       { eu, termo: `%${termo}%` },
     );
 
-    const usuarios = (resultado.rows || []).map((linha) => {
+    const linhas = resultado.rows || [];
+    const temMais = linhas.length > limite;
+    const usuarios = linhas.slice(0, limite).map((linha) => {
       const { relacao, solicitacaoId } = relacaoDaBusca(linha, eu);
       return {
         usuario: usuarioDaLinha(linha),
@@ -136,7 +153,7 @@ router.get('/usuarios/busca', async (req, res) => {
       };
     });
 
-    return res.status(200).json({ usuarios });
+    return res.status(200).json({ usuarios, pagina, limite, temMais });
   } catch (erro) {
     return tratarErro(res, erro, 'busca de usuários');
   }
@@ -151,27 +168,119 @@ router.get('/amigos', async (req, res) => {
       `SELECT a.id AS amizade_id,
               u.id AS usuario_id,
               u.nome AS usuario_nome,
-              u.username AS usuario_username
+              u.username AS usuario_username,
+              u.localizacao_bairro,
+              u.localizacao_cidade,
+              r.nome   AS regiao_nome,
+              r.cidade AS regiao_cidade,
+              CASE WHEN af.usuario_id IS NOT NULL THEN 1 ELSE 0 END AS favorito
          FROM amizade a
          JOIN usuario u
            ON u.id = CASE
                        WHEN a.solicitante_id = :eu THEN a.destinatario_id
                        ELSE a.solicitante_id
                      END
+         LEFT JOIN regiao_aproximada r ON r.id = u.regiao_id
+         LEFT JOIN amizade_favorito af
+           ON af.usuario_id = :eu
+          AND af.amigo_usuario_id = u.id
         WHERE a.status = 'A'
           AND (a.solicitante_id = :eu OR a.destinatario_id = :eu)
-        ORDER BY u.nome`,
+        ORDER BY CASE WHEN af.usuario_id IS NOT NULL THEN 0 ELSE 1 END,
+                 u.nome`,
       { eu },
     );
 
-    const amigos = (resultado.rows || []).map((linha) => ({
-      amizadeId: linha.AMIZADE_ID,
-      usuario: usuarioDaLinha(linha),
-    }));
+    const amigos = (resultado.rows || []).map((linha) => {
+      const bairro =
+        linha.LOCALIZACAO_BAIRRO || linha.REGIAO_NOME || null;
+      const cidade =
+        linha.LOCALIZACAO_CIDADE || linha.REGIAO_CIDADE || null;
+      return {
+        amizadeId: linha.AMIZADE_ID,
+        usuario: usuarioDaLinha(linha),
+        localizacaoAproximada: bairro
+          ? { bairro, cidade }
+          : null,
+        favorito: Number(linha.FAVORITO || 0) === 1,
+      };
+    });
 
     return res.status(200).json({ amigos });
   } catch (erro) {
     return tratarErro(res, erro, 'lista de amigos');
+  }
+});
+
+// PUT /amigos/:usuarioId/favorito
+router.put('/amigos/:usuarioId/favorito', async (req, res) => {
+  const eu = req.usuario.ID;
+  const amigoId = Number(req.params.usuarioId);
+
+  if (!Number.isInteger(amigoId) || amigoId <= 0 || amigoId === eu) {
+    return validacao(res, [
+      { campo: 'usuarioId', mensagem: 'Informe um amigo válido.' },
+    ]);
+  }
+
+  try {
+    const resposta = await db.comConexao(async (conexao) => {
+      const amizade = await amizadeDoPar(conexao, eu, amigoId);
+      if (!amizade || amizade.STATUS !== 'A') {
+        return { erro: { status: 404, codigo: 'AMIGO_NAO_ENCONTRADO' } };
+      }
+
+      await conexao.execute(
+        `MERGE INTO amizade_favorito destino
+         USING (
+           SELECT :eu AS usuario_id, :amigoId AS amigo_usuario_id FROM dual
+         ) origem
+            ON (destino.usuario_id = origem.usuario_id
+                AND destino.amigo_usuario_id = origem.amigo_usuario_id)
+          WHEN NOT MATCHED THEN
+            INSERT (usuario_id, amigo_usuario_id)
+            VALUES (origem.usuario_id, origem.amigo_usuario_id)`,
+        { eu, amigoId },
+      );
+      await conexao.commit();
+      return { favorito: true };
+    });
+
+    if (resposta.erro) {
+      return responderErro(
+        res,
+        resposta.erro.status,
+        resposta.erro.codigo,
+        'Amigo não encontrado.',
+      );
+    }
+    return res.status(200).json(resposta);
+  } catch (erro) {
+    return tratarErro(res, erro, 'favoritar amigo');
+  }
+});
+
+// DELETE /amigos/:usuarioId/favorito
+router.delete('/amigos/:usuarioId/favorito', async (req, res) => {
+  const eu = req.usuario.ID;
+  const amigoId = Number(req.params.usuarioId);
+
+  if (!Number.isInteger(amigoId) || amigoId <= 0) {
+    return validacao(res, [
+      { campo: 'usuarioId', mensagem: 'Informe um amigo válido.' },
+    ]);
+  }
+
+  try {
+    await db.executar(
+      `DELETE FROM amizade_favorito
+        WHERE usuario_id = :eu AND amigo_usuario_id = :amigoId`,
+      { eu, amigoId },
+      { autoCommit: true },
+    );
+    return res.status(200).json({ favorito: false });
+  } catch (erro) {
+    return tratarErro(res, erro, 'desfavoritar amigo');
   }
 });
 

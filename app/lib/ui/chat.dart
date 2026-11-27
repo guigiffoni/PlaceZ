@@ -3,13 +3,19 @@ import 'package:flutter/material.dart';
 import '../core/auth/auth_controller.dart';
 import '../core/chat/conversas_controller.dart';
 import '../data/models/conversa.dart';
+import '../data/models/grupo.dart';
 import 'telas/conversa.dart';
+import 'telas/criar_grupo.dart';
 import 'telas/login.dart';
+import 'widgets/avatar_usuario.dart';
+import 'widgets/campo_busca.dart';
+import 'widgets/placez_componentes.dart';
 
 class TelaChat extends StatefulWidget {
   final AuthController authController;
+  final bool ativo;
 
-  const TelaChat({super.key, required this.authController});
+  const TelaChat({super.key, required this.authController, this.ativo = true});
 
   @override
   State<TelaChat> createState() => _TelaChatState();
@@ -17,18 +23,42 @@ class TelaChat extends StatefulWidget {
 
 class _TelaChatState extends State<TelaChat> with WidgetsBindingObserver {
   late final ConversasController _controller;
+  final TextEditingController _buscaController = TextEditingController();
+  String _filtro = '';
+  late bool _ativo;
 
   @override
   void initState() {
     super.initState();
+    _ativo = widget.ativo;
     _controller = ConversasController(auth: widget.authController);
     WidgetsBinding.instance.addObserver(this);
-    _controller.iniciarPolling();
+    if (_ativo) _controller.iniciarPolling();
+  }
+
+  @override
+  void didUpdateWidget(covariant TelaChat oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.ativo != widget.ativo) {
+      _definirAtivo(widget.ativo);
+    }
+  }
+
+  void _definirAtivo(bool ativo) {
+    if (_ativo == ativo) return;
+    _ativo = ativo;
+    if (ativo) {
+      _controller.iniciarPolling();
+      _controller.carregar(silencioso: true);
+    } else {
+      _controller.pararPolling();
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _buscaController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -36,8 +66,10 @@ class _TelaChatState extends State<TelaChat> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState estado) {
     if (estado == AppLifecycleState.resumed) {
-      _controller.iniciarPolling();
-      _controller.carregar(silencioso: true);
+      if (_ativo) {
+        _controller.iniciarPolling();
+        _controller.carregar(silencioso: true);
+      }
     } else {
       _controller.pararPolling();
     }
@@ -57,6 +89,37 @@ class _TelaChatState extends State<TelaChat> with WidgetsBindingObserver {
     _controller.carregar(silencioso: true);
   }
 
+  Future<void> _abrirCriarGrupo() async {
+    if (!widget.authController.autenticado) {
+      await _abrirLogin();
+      return;
+    }
+
+    final criado = await Navigator.of(context).push<GrupoCriado>(
+      MaterialPageRoute(
+        builder: (context) =>
+            TelaCriarGrupo(authController: widget.authController),
+      ),
+    );
+    if (criado == null || !mounted) return;
+
+    _controller.carregar(silencioso: true);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TelaConversa(
+          authController: widget.authController,
+          conversaId: criado.conversa.id,
+          titulo: criado.conversa.nome,
+          podeEnviarInicial: criado.conversa.podeEnviar,
+          bloqueadaInicial: criado.conversa.bloqueada,
+          ehGrupo: true,
+          grupoId: criado.grupo.id,
+        ),
+      ),
+    );
+    if (mounted) _controller.carregar(silencioso: true);
+  }
+
   Future<void> _abrirConversa(Conversa conversa) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -68,16 +131,48 @@ class _TelaChatState extends State<TelaChat> with WidgetsBindingObserver {
           podeEnviarInicial: conversa.podeEnviar,
           bloqueadaInicial: conversa.bloqueada,
           ehEvento: conversa.tipo == 'EVENTO',
+          ehGrupo: conversa.tipo == 'GRUPO',
+          grupoId: conversa.grupoId,
         ),
       ),
     );
     if (mounted) _controller.carregar(silencioso: true);
   }
 
+  Future<void> _apagarConversa(Conversa conversa) async {
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Apagar conversa?'),
+        content: const Text(
+          'Ela será removida da sua lista e do cache do aparelho. Se chegar '
+          'uma nova mensagem, a conversa volta a aparecer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Apagar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmou != true || !mounted) return;
+
+    final erro = await _controller.apagarConversa(conversa);
+    if (erro != null && mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(erro)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Conversas')),
       body: ListenableBuilder(
         listenable: Listenable.merge([widget.authController, _controller]),
         builder: (context, child) {
@@ -93,6 +188,13 @@ class _TelaChatState extends State<TelaChat> with WidgetsBindingObserver {
   Widget _conteudo(BuildContext context) {
     final theme = Theme.of(context);
     final semDados = _controller.carregando && _controller.conversas.isEmpty;
+    final conversas = _filtro.isEmpty
+        ? _controller.conversas
+        : _controller.conversas
+              .where(
+                (conversa) => conversa.nome.toLowerCase().contains(_filtro),
+              )
+              .toList();
 
     if (semDados) {
       return const Center(child: CircularProgressIndicator());
@@ -102,31 +204,65 @@ class _TelaChatState extends State<TelaChat> with WidgetsBindingObserver {
       onRefresh: () => _controller.carregar(),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
+          Row(
+            children: [
+              Expanded(
+                child: TituloSecao(
+                  'Suas conversas',
+                  sufixo: _controller.conversas.isEmpty
+                      ? null
+                      : '${_controller.conversas.length}',
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _abrirCriarGrupo,
+                icon: const Icon(Icons.group_add_outlined, size: 18),
+                label: const Text('Novo grupo'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          CampoBusca(
+            controller: _buscaController,
+            hintText: 'Pesquisar conversas e grupos',
+            helperText: 'A busca filtra nomes de conversas, grupos e eventos.',
+            onChanged: (valor) {
+              setState(() => _filtro = valor.trim().toLowerCase());
+            },
+            onClear: () => setState(() => _filtro = ''),
+          ),
           if (_controller.erro != null) ...[
-            _Aviso(
-              mensagem: _controller.erro!,
+            AvisoPlacez(
+              _controller.erro!,
               erro: true,
               onFechar: _controller.limparErro,
             ),
             const SizedBox(height: 12),
           ],
           if (_controller.mostrandoCache) ...[
-            const _Aviso(
-              mensagem: 'Sem conexão com a API. Mostrando as conversas salvas no aparelho.',
+            const AvisoPlacez(
+              'Sem conexão com a API. Mostrando as conversas salvas no '
+              'aparelho.',
             ),
             const SizedBox(height: 12),
           ],
           if (_controller.conversas.isEmpty)
             const _EstadoVazio()
+          else if (conversas.isEmpty)
+            EstadoVazio(
+              icone: Icons.search_off,
+              titulo: 'Nenhuma conversa encontrada',
+              descricao: 'Nenhuma conversa corresponde a "$_filtro".',
+            )
           else
             Card(
               elevation: 0,
               margin: EdgeInsets.zero,
               color: theme.colorScheme.surfaceContainerLow,
               child: Column(
-                children: _controller.conversas
+                children: conversas
                     .map((conversa) => _conversaTile(conversa, theme))
                     .toList(),
               ),
@@ -141,17 +277,38 @@ class _TelaChatState extends State<TelaChat> with WidgetsBindingObserver {
     final meuId = widget.authController.usuario?.id;
     final minha = ultima?.autorId != null && ultima!.autorId == meuId;
     final ehEvento = conversa.tipo == 'EVENTO';
+    final ehGrupo = conversa.tipo == 'GRUPO';
     final previa = ultima == null
-        ? (ehEvento ? 'Chat do evento' : 'Nenhuma mensagem ainda')
+        ? (ehEvento
+              ? 'Chat do evento'
+              : ehGrupo
+              ? 'Grupo'
+              : 'Nenhuma mensagem ainda')
         : '${minha ? 'Você: ' : ''}${ultima.texto}';
 
     return ListTile(
       leading: ehEvento
           ? const CircleAvatar(child: Icon(Icons.groups))
-          : CircleAvatar(child: Text(conversa.iniciais)),
+          : ehGrupo
+          ? const CircleAvatar(child: Icon(Icons.group))
+          : AvatarUsuario(
+              auth: widget.authController,
+              usuarioId: conversa.outroUsuario?.id ?? 0,
+              nome: conversa.nome,
+              raio: 20,
+            ),
       title: Row(
         children: [
-          Expanded(child: Text(conversa.nome)),
+          Expanded(
+            child: Text(
+              conversa.nome,
+              style: conversa.naoLidas > 0
+                  ? theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    )
+                  : null,
+            ),
+          ),
           if (conversa.bloqueada)
             Icon(Icons.lock_outline, size: 16, color: theme.colorScheme.error)
           else if (!conversa.podeEnviar)
@@ -170,11 +327,62 @@ class _TelaChatState extends State<TelaChat> with WidgetsBindingObserver {
           color: theme.colorScheme.onSurfaceVariant,
         ),
       ),
-      trailing: Text(
-        _rotuloData(ultima?.criadoEm ?? conversa.atualizadoEm),
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                _rotuloData(ultima?.criadoEm ?? conversa.atualizadoEm),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (conversa.naoLidas > 0) ...[
+                const SizedBox(height: 4),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 20),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    conversa.naoLidas > 99 ? '99+' : '${conversa.naoLidas}',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Opções da conversa',
+            padding: EdgeInsets.zero,
+            iconSize: 20,
+            onSelected: (valor) {
+              if (valor == 'apagar') _apagarConversa(conversa);
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'apagar',
+                child: ListTile(
+                  leading: Icon(Icons.delete_outline),
+                  title: Text('Apagar conversa'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       onTap: () => _abrirConversa(conversa),
     );
@@ -274,57 +482,6 @@ class _EstadoVazio extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Aviso extends StatelessWidget {
-  final String mensagem;
-  final VoidCallback? onFechar;
-  final bool erro;
-
-  const _Aviso({required this.mensagem, this.onFechar, this.erro = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final fundo = erro
-        ? theme.colorScheme.errorContainer
-        : theme.colorScheme.secondaryContainer;
-    final frente = erro
-        ? theme.colorScheme.onErrorContainer
-        : theme.colorScheme.onSecondaryContainer;
-
-    return Container(
-      padding: EdgeInsets.fromLTRB(12, 10, onFechar == null ? 12 : 4, 10),
-      decoration: BoxDecoration(
-        color: fundo,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            erro ? Icons.error_outline : Icons.info_outline,
-            color: frente,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              mensagem,
-              style: theme.textTheme.bodySmall?.copyWith(color: frente),
-            ),
-          ),
-          if (onFechar != null)
-            IconButton(
-              onPressed: onFechar,
-              icon: Icon(Icons.close, size: 18, color: frente),
-              tooltip: 'Fechar aviso',
-              visualDensity: VisualDensity.compact,
-            ),
         ],
       ),
     );

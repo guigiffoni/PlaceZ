@@ -1,4 +1,5 @@
 import '../../data/models/conversa.dart';
+import '../../data/models/grupo.dart';
 import '../network/api_client.dart';
 import '../network/api_exception.dart';
 
@@ -59,6 +60,120 @@ class ChatRepository {
     }
   }
 
+  Future<void> marcarLida(int conversaId, {int? ultimaMensagemId}) async {
+    final client = await _criarCliente();
+    try {
+      await client.post(
+        '/conversas/$conversaId/lido',
+        body: ultimaMensagemId == null
+            ? null
+            : {'ultimaMensagemId': ultimaMensagemId},
+      );
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<GrupoCriado> criarGrupo(String nome, List<int> usuarioIds) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.post(
+        '/grupos',
+        body: {'nome': nome, 'usuarioIds': usuarioIds},
+      );
+      final mapa = _comoMapa(resposta);
+      try {
+        return GrupoCriado.fromJson(mapa);
+      } on FormatException catch (erro) {
+        throw ApiException(code: 'RESPOSTA_INVALIDA', message: erro.message);
+      }
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<Grupo> buscarGrupo(int grupoId) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.get('/grupos/$grupoId');
+      return _grupoDaResposta(resposta);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<Grupo> adicionarMembrosGrupo(int grupoId, List<int> usuarioIds) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.post(
+        '/grupos/$grupoId/membros',
+        body: {'usuarioIds': usuarioIds},
+      );
+      return _grupoDaResposta(resposta);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<Grupo> atualizarConfiguracaoGrupo(
+    int grupoId, {
+    required bool membrosPodemAdicionar,
+  }) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.patch(
+        '/grupos/$grupoId',
+        body: {'membrosPodemAdicionar': membrosPodemAdicionar},
+      );
+      return _grupoDaResposta(resposta);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<Grupo> transferirAdministracao(int grupoId, int usuarioId) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.patch(
+        '/grupos/$grupoId/admin',
+        body: {'usuarioId': usuarioId},
+      );
+      return _grupoDaResposta(resposta);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<Grupo> removerMembroGrupo(int grupoId, int usuarioId) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.delete(
+        '/grupos/$grupoId/membros/$usuarioId',
+      );
+      return _grupoDaResposta(resposta);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> apagarConversa(int conversaId) async {
+    final client = await _criarCliente();
+    try {
+      await client.delete('/conversas/$conversaId');
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> sairGrupo(int grupoId) async {
+    final client = await _criarCliente();
+    try {
+      await client.post('/grupos/$grupoId/sair');
+    } finally {
+      client.close();
+    }
+  }
+
   Future<List<Mensagem>> listarMensagens(int conversaId, {int? afterId}) async {
     final client = await _criarCliente();
     try {
@@ -106,6 +221,22 @@ class ChatRepository {
       );
     }
     return Map<String, dynamic>.from(resposta);
+  }
+
+  Grupo _grupoDaResposta(dynamic resposta) {
+    final mapa = _comoMapa(resposta);
+    final grupo = mapa['grupo'] ?? mapa;
+    if (grupo is! Map) {
+      throw const ApiException(
+        code: 'RESPOSTA_INVALIDA',
+        message: 'A API não retornou um grupo válido.',
+      );
+    }
+    try {
+      return Grupo.fromJson(Map<String, dynamic>.from(grupo));
+    } on FormatException catch (erro) {
+      throw ApiException(code: 'RESPOSTA_INVALIDA', message: erro.message);
+    }
   }
 
   Conversa _conversaDaResposta(dynamic resposta) {

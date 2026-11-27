@@ -5,7 +5,6 @@ class PreferenciaTema {
   static const String _modoTema = 'theme_mode';
   static const String _seedCor = 'seed_color';
 
-
   static Future<void> salvaModoTema(ThemeMode modo) async {
     final prefs = await SharedPreferences.getInstance();
 

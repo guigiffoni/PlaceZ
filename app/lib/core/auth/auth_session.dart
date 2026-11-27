@@ -24,11 +24,7 @@ class AuthUsuario {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'nome': nome,
-      'username': username,
-    };
+    return {'id': id, 'nome': nome, 'username': username};
   }
 }
 
@@ -47,8 +43,8 @@ class AuthSession {
 
   factory AuthSession.fromJson(Map<String, dynamic> json) {
     final token = (json['token'] ?? '').toString().trim();
-    final expiraEm =
-        DateTime.tryParse((json['expiraEm'] ?? '').toString())?.toUtc();
+    final expiraEm = DateTime.tryParse((json['expiraEm'] ?? '').toString())
+        ?.toUtc();
     final usuarioJson = json['usuario'];
 
     if (token.isEmpty || expiraEm == null || usuarioJson is! Map) {

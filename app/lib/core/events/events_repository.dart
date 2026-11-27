@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import '../../data/models/enquete.dart';
 import '../../data/models/evento.dart';
+import '../../data/models/evento_resumo.dart';
 import '../../data/models/local.dart';
 import '../../data/models/ranking_pessoa.dart';
 import '../network/api_client.dart';
@@ -123,6 +126,62 @@ class EventsRepository {
       final resposta = await client.get('/eventos/rascunhos');
       final mapa = _comoMapa(resposta);
       return _converteLista(mapa['eventos'], Evento.fromJson);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<List<EventoResumo>> listarGerenciaveis() async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.get('/eventos/gerenciaveis');
+      final mapa = _comoMapa(resposta);
+      final eventos = mapa['eventos'];
+      if (eventos is! List) return const [];
+      try {
+        return eventos
+            .whereType<Map>()
+            .map(
+              (item) => EventoResumo.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .toList();
+      } on FormatException catch (erro) {
+        throw ApiException(code: 'RESPOSTA_INVALIDA', message: erro.message);
+      }
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<Evento> atualizarLocal(int id, Local local) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.patch(
+        '/eventos/$id',
+        body: {'local': local.toJson()},
+      );
+      return _eventoDaResposta(resposta);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> atualizarImagem(int id, List<int> bytes, String mime) async {
+    final client = await _criarCliente();
+    try {
+      await client.put(
+        '/eventos/$id/imagem',
+        body: {'imagemBase64': base64Encode(bytes), 'mime': mime},
+      );
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> removerImagem(int id) async {
+    final client = await _criarCliente();
+    try {
+      await client.delete('/eventos/$id/imagem');
     } finally {
       client.close();
     }

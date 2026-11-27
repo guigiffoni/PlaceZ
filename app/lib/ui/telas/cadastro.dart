@@ -1,34 +1,48 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/events/events_controller.dart';
 import '../../core/events/events_repository.dart';
 import '../../core/friends/friends_repository.dart';
+import '../../core/locations/fotos_lugar.dart';
 import '../../core/network/api_exception.dart';
 import '../../data/models/amizade.dart';
 import '../../data/models/evento.dart';
 import '../../data/models/local.dart';
-import '../widgets/seletor_local_mock.dart';
+import '../../tema.dart';
+import '../widgets/imagem_evento.dart';
 import '../widgets/seletor_mapa.dart';
+import 'selecao_local.dart';
+import 'sugestao_local.dart';
 
 class TelaCadastroEvento extends StatefulWidget {
   final EventsController eventsController;
   final Evento? eventoParaEditar;
+  final DateTime? dataInicioInicial;
+  final bool fecharAoSalvar;
+  final bool mostrarAppBar;
+  final VoidCallback? onBuscarNoCatalogo;
 
   const TelaCadastroEvento({
     super.key,
     required this.eventsController,
     this.eventoParaEditar,
+    this.dataInicioInicial,
+    this.fecharAoSalvar = false,
+    this.mostrarAppBar = true,
+    this.onBuscarNoCatalogo,
   });
 
   @override
-  State<TelaCadastroEvento> createState() => _TelaCadastroEventoState();
+  State<TelaCadastroEvento> createState() => TelaCadastroEventoState();
 }
 
-class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
+class TelaCadastroEventoState extends State<TelaCadastroEvento> {
   final _formKey = GlobalKey<FormState>();
   final _tituloController = TextEditingController();
   final _descricaoController = TextEditingController();
@@ -45,6 +59,13 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
   bool _carregandoAmigos = false;
   String? _erroAmigos;
   bool _salvando = false;
+
+  Uint8List? _imagemBytes;
+  String? _imagemMime;
+  bool _imagemAtual = false;
+  bool _imagemRemover = false;
+  bool _imagemDoLugar = false;
+  bool _carregandoImagem = false;
 
   FriendsRepository? _friendsRepository;
 
@@ -69,6 +90,13 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
       _privado = evento.privado;
       _permitirMembrosConvidar = evento.permitirMembrosConvidar;
       _usarCombinacao = evento.status == 'RASCUNHO';
+      _imagemAtual = evento.temImagem;
+    } else if (widget.dataInicioInicial != null) {
+      // O TableCalendar entrega a data do dia como meia-noite UTC; usar os
+      // componentes evita deslocar o dia ao converter para o fuso local.
+      final dia = widget.dataInicioInicial!;
+      _dataInicio = DateTime(dia.year, dia.month, dia.day, 19, 0);
+      _dataFim = _dataInicio.add(const Duration(hours: 1));
     }
 
     final auth = widget.eventsController.auth;
@@ -79,6 +107,20 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
       );
       if (!_modoEdicao) _carregarAmigos();
     }
+  }
+
+  void definirLocalSelecionado(Local local) => _definirLocal(local);
+
+  void _definirLocal(Local? local) {
+    if (!mounted) return;
+    setState(() {
+      _localSelecionado = local;
+      if (_imagemDoLugar) {
+        _imagemBytes = null;
+        _imagemMime = null;
+        _imagemDoLugar = false;
+      }
+    });
   }
 
   @override
@@ -197,9 +239,17 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
+                leading: const Icon(Icons.auto_awesome),
+                title: const Text('Sugerir local para o grupo'),
+                subtitle: const Text(
+                  'Perto de todos, de alguns ou de uma pessoa',
+                ),
+                onTap: () => Navigator.of(context).pop('sugerir'),
+              ),
+              ListTile(
                 leading: const Icon(Icons.travel_explore),
                 title: const Text('Buscar lugar no catálogo'),
-                subtitle: const Text('Nome, endereço, categoria e distância'),
+                subtitle: const Text('Nome, endereço, categoria e cidade'),
                 onTap: () => Navigator.of(context).pop('catalogo'),
               ),
               ListTile(
@@ -227,10 +277,31 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
     if (opcao == null || !mounted) return;
 
     switch (opcao) {
+      case 'sugerir':
+        final sugestao = await Navigator.of(context).push<Local>(
+          MaterialPageRoute(
+            builder: (context) => TelaSugestaoLocal(
+              authController: widget.eventsController.auth,
+              amigos: _amigos,
+              convidadosSelecionados: _convidadosSelecionados,
+            ),
+          ),
+        );
+        if (sugestao != null && mounted) _definirLocal(sugestao);
+        break;
       case 'catalogo':
-        final local = await SeletorLocalMock.abrir(context);
-        if (local != null && mounted) {
-          setState(() => _localSelecionado = local);
+        if (widget.onBuscarNoCatalogo != null) {
+          widget.onBuscarNoCatalogo!();
+          break;
+        }
+        final localCatalogo = await Navigator.of(context).push<Local>(
+          MaterialPageRoute(
+            builder: (context) =>
+                TelaSelecaoLocal(authController: widget.eventsController.auth),
+          ),
+        );
+        if (localCatalogo != null && mounted) {
+          _definirLocal(localCatalogo);
         }
         break;
       case 'mapa':
@@ -239,20 +310,20 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
           MaterialPageRoute(builder: (context) => const SeletorMapa()),
         );
         if (latLng != null && mounted) {
-          setState(() {
-            _localSelecionado = Local(
+          _definirLocal(
+            Local(
               nome: 'Local selecionado no mapa',
               latitude: latLng.latitude,
               longitude: latLng.longitude,
-            );
-          });
+            ),
+          );
         }
         break;
       case 'nominatim':
         await _buscarEnderecoNominatim();
         break;
       case 'remover':
-        setState(() => _localSelecionado = null);
+        _definirLocal(null);
         break;
     }
   }
@@ -338,14 +409,14 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
       }
 
       final endereco = (escolhido['display_name'] ?? '').toString();
-      setState(() {
-        _localSelecionado = Local(
+      _definirLocal(
+        Local(
           nome: endereco.split(',').first.trim(),
           endereco: endereco,
           latitude: lat,
           longitude: lon,
-        );
-      });
+        ),
+      );
     } catch (erro) {
       _avisar('Não foi possível buscar o endereço: $erro');
     }
@@ -396,6 +467,104 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
     return '$dia/$mes/$ano às $hora:$minuto';
   }
 
+  Future<void> _escolherImagem(ImageSource origem) async {
+    if (_carregandoImagem) return;
+    setState(() => _carregandoImagem = true);
+    try {
+      final arquivo = await ImagePicker().pickImage(
+        source: origem,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 80,
+        requestFullMetadata: false,
+      );
+      if (arquivo == null || !mounted) return;
+
+      final bytes = await arquivo.readAsBytes();
+      if (bytes.length > 600 * 1024) {
+        _avisar('A imagem deve ter no máximo 600 KB.');
+        return;
+      }
+
+      final nome = arquivo.name.toLowerCase();
+      final mime = nome.endsWith('.png')
+          ? 'image/png'
+          : nome.endsWith('.webp')
+          ? 'image/webp'
+          : 'image/jpeg';
+
+      setState(() {
+        _imagemBytes = bytes;
+        _imagemMime = mime;
+        _imagemDoLugar = false;
+        _imagemRemover = false;
+        _imagemAtual = false;
+      });
+    } catch (erro) {
+      _avisar('Não foi possível selecionar a imagem: $erro');
+    } finally {
+      if (mounted) setState(() => _carregandoImagem = false);
+    }
+  }
+
+  Future<void> _usarFotoDoLugar() async {
+    final local = _localSelecionado;
+    if (local == null || _carregandoImagem) return;
+    if (local.categoria == null) {
+      _avisar('Este local não tem foto de catálogo para sugerir.');
+      return;
+    }
+
+    setState(() => _carregandoImagem = true);
+    try {
+      final asset = FotosLugar.principal(local.categoria, local.nome);
+      final dados = await rootBundle.load(asset);
+      final bytes = dados.buffer.asUint8List();
+      if (bytes.length > 600 * 1024) {
+        _avisar('A foto do local é grande demais para o evento.');
+        return;
+      }
+
+      setState(() {
+        _imagemBytes = bytes;
+        _imagemMime = 'image/jpeg';
+        _imagemDoLugar = true;
+        _imagemRemover = false;
+        _imagemAtual = false;
+      });
+    } catch (erro) {
+      _avisar('Não foi possível usar a foto do local: $erro');
+    } finally {
+      if (mounted) setState(() => _carregandoImagem = false);
+    }
+  }
+
+  void _removerImagem() {
+    setState(() {
+      _imagemBytes = null;
+      _imagemMime = null;
+      _imagemDoLugar = false;
+      _imagemRemover = _modoEdicao;
+      _imagemAtual = false;
+    });
+  }
+
+  Future<String?> _enviarImagemDoEvento(int eventoId) {
+    final bytes = _imagemBytes;
+    final mime = _imagemMime;
+    if (bytes != null && mime != null) {
+      return widget.eventsController.atualizarImagemEvento(
+        eventoId,
+        bytes,
+        mime,
+      );
+    }
+    if (_imagemRemover && _modoEdicao) {
+      return widget.eventsController.removerImagemEvento(eventoId);
+    }
+    return Future.value(null);
+  }
+
   Future<void> _salvar() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -422,6 +591,7 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
       );
 
       String? erro;
+      String? erroImagem;
       if (_modoEdicao) {
         final evento = widget.eventoParaEditar!;
         erro = await widget.eventsController.editar(evento.id!, entrada);
@@ -437,12 +607,17 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
             );
             if (erroConfig != null) _avisar(erroConfig);
           }
+          erroImagem = await _enviarImagemDoEvento(evento.id!);
         }
       } else {
         erro = await widget.eventsController.criar(
           entrada,
           convidadoIds: _convidadosSelecionados.toList(),
         );
+        final criado = widget.eventsController.ultimoEventoCriado;
+        if (erro == null && criado?.id != null) {
+          erroImagem = await _enviarImagemDoEvento(criado!.id!);
+        }
       }
 
       if (!mounted) return;
@@ -451,8 +626,11 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
         _avisar(erro);
         return;
       }
+      if (erroImagem != null) {
+        _avisar('Evento salvo, mas a imagem não pôde ser enviada: $erroImagem');
+      }
 
-      if (_modoEdicao) {
+      if (_modoEdicao || widget.fecharAoSalvar) {
         Navigator.of(context).pop(true);
         return;
       }
@@ -477,6 +655,11 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
         _permitirMembrosConvidar = false;
         _usarCombinacao = false;
         _convidadosSelecionados = <int>{};
+        _imagemBytes = null;
+        _imagemMime = null;
+        _imagemAtual = false;
+        _imagemRemover = false;
+        _imagemDoLugar = false;
       });
     } finally {
       if (mounted) setState(() => _salvando = false);
@@ -495,14 +678,15 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_modoEdicao ? 'Editar evento' : 'Novo Evento'),
-      ),
+      appBar: widget.mostrarAppBar
+          ? AppBar(title: Text(_modoEdicao ? 'Editar evento' : 'Novo Evento'))
+          : null,
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
           children: [
+            _rotuloSecao('Sobre o evento', Icons.celebration_outlined, theme),
             TextFormField(
               controller: _tituloController,
               decoration: const InputDecoration(
@@ -519,7 +703,7 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
                 return null;
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: PlacezTokens.espMd),
             TextFormField(
               controller: _descricaoController,
               maxLines: 3,
@@ -528,86 +712,104 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
                 border: OutlineInputBorder(),
               ),
             ),
-            if (!_modoEdicao) ...[
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _usarCombinacao,
-                onChanged: (valor) => setState(() => _usarCombinacao = valor),
-                title: const Text('Usar combinação de dias'),
-                subtitle: const Text(
-                  'Cria um rascunho e deixa os convidados votarem nos dias '
-                  'possíveis antes de confirmar.',
-                ),
+            const SizedBox(height: PlacezTokens.espXl),
+            _rotuloSecao('Quando e onde', Icons.event_outlined, theme),
+            Card(
+              child: Column(
+                children: [
+                  if (!_modoEdicao) ...[
+                    SwitchListTile(
+                      value: _usarCombinacao,
+                      onChanged: (valor) =>
+                          setState(() => _usarCombinacao = valor),
+                      secondary: const Icon(Icons.auto_awesome_outlined),
+                      title: const Text('Usar combinação de dias'),
+                      subtitle: const Text(
+                        'Cria um rascunho e deixa os convidados votarem nos '
+                        'dias possíveis antes de confirmar.',
+                      ),
+                    ),
+                    const Divider(),
+                  ],
+                  ListTile(
+                    leading: const Icon(Icons.location_on_outlined),
+                    title: const Text('Local (opcional)'),
+                    subtitle: Text(
+                      _localSelecionado == null
+                          ? 'Nenhum local selecionado'
+                          : _localSelecionado!.rotulo,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _abrirOpcoesDeLocal,
+                  ),
+                  if (_emRascunho) ...[
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.auto_awesome_outlined),
+                      title: const Text('Data por combinação'),
+                      subtitle: Text(
+                        _modoEdicao
+                            ? 'Ajuste o período e os dias na aba Combinação.'
+                            : 'Depois de salvar, defina o período e os dias na '
+                                  'aba Combinação.',
+                      ),
+                    ),
+                  ] else ...[
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.calendar_today_outlined),
+                      title: const Text('Início *'),
+                      subtitle: Text(_formatarData(_dataInicio)),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _selecionarDataHora(true),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.event_available_outlined),
+                      title: const Text('Fim *'),
+                      subtitle: Text(_formatarData(_dataFim)),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _selecionarDataHora(false),
+                    ),
+                  ],
+                ],
               ),
-            ],
-            const SizedBox(height: 12),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.location_on),
-              title: const Text('Local (opcional)'),
-              subtitle: Text(
-                _localSelecionado == null
-                    ? 'Nenhum local selecionado'
-                    : _localSelecionado!.rotulo,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: _abrirOpcoesDeLocal,
             ),
-            if (_emRascunho)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.auto_awesome),
-                title: const Text('Data por combinação'),
-                subtitle: Text(
-                  _modoEdicao
-                      ? 'Ajuste o período e os dias na aba Combinação.'
-                      : 'Depois de salvar, defina o período e os dias na aba '
-                            'Combinação.',
-                ),
-              )
-            else ...[
-              const Divider(),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.calendar_today),
-                title: const Text('Início *'),
-                subtitle: Text(_formatarData(_dataInicio)),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () => _selecionarDataHora(true),
-              ),
-              const Divider(),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.calendar_today),
-                title: const Text('Fim *'),
-                subtitle: Text(_formatarData(_dataFim)),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () => _selecionarDataHora(false),
-              ),
-            ],
-            const SizedBox(height: 16),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _privado,
-              onChanged: (valor) => setState(() => _privado = valor),
-              title: const Text('Evento privado'),
-              subtitle: const Text('Somente convidados podem ver o evento.'),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _permitirMembrosConvidar,
-              onChanged: (valor) =>
-                  setState(() => _permitirMembrosConvidar = valor),
-              title: const Text('Membros também podem convidar'),
-              subtitle: const Text(
-                'Qualquer convidado pode trazer novos amigos para o evento.',
+            const SizedBox(height: PlacezTokens.espXl),
+            _secaoImagem(theme),
+            const SizedBox(height: PlacezTokens.espXl),
+            _rotuloSecao('Privacidade e convites', Icons.lock_outline, theme),
+            Card(
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    value: _privado,
+                    onChanged: (valor) => setState(() => _privado = valor),
+                    secondary: const Icon(Icons.visibility_off_outlined),
+                    title: const Text('Evento privado'),
+                    subtitle: const Text(
+                      'Somente convidados podem ver o evento.',
+                    ),
+                  ),
+                  const Divider(),
+                  SwitchListTile(
+                    value: _permitirMembrosConvidar,
+                    onChanged: (valor) =>
+                        setState(() => _permitirMembrosConvidar = valor),
+                    secondary: const Icon(Icons.person_add_alt_1_outlined),
+                    title: const Text('Membros também podem convidar'),
+                    subtitle: const Text(
+                      'Qualquer convidado pode trazer novos amigos para o '
+                      'evento.',
+                    ),
+                  ),
+                ],
               ),
             ),
             if (_modoEdicao) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: PlacezTokens.espMd),
               Text(
                 'Os convidados são gerenciados no detalhe do evento.',
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -615,10 +817,10 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
                 ),
               ),
             ] else ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: PlacezTokens.espXl),
               _secaoConvidados(theme),
             ],
-            const SizedBox(height: 28),
+            const SizedBox(height: PlacezTokens.espXl),
             FilledButton(
               onPressed: _salvando ? null : _salvar,
               style: FilledButton.styleFrom(
@@ -635,6 +837,157 @@ class _TelaCadastroEventoState extends State<TelaCadastroEvento> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _rotuloSecao(String titulo, IconData icone, ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: PlacezTokens.espSm),
+      child: Row(
+        children: [
+          Icon(icone, size: 18, color: theme.colorScheme.primary),
+          const SizedBox(width: PlacezTokens.espSm),
+          Text(
+            titulo,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _secaoImagem(ThemeData theme) {
+    final local = _localSelecionado;
+    final sugestao = local == null || local.categoria == null
+        ? null
+        : FotosLugar.principal(local.categoria, local.nome);
+    final evento = widget.eventoParaEditar;
+    final temImagemAtual =
+        _imagemAtual && _modoEdicao && evento?.id != null && !_imagemRemover;
+
+    Widget preview() {
+      if (_imagemBytes != null) {
+        return Image.memory(_imagemBytes!, fit: BoxFit.cover);
+      }
+      if (temImagemAtual) {
+        return ImagemEvento(
+          auth: widget.eventsController.auth,
+          eventoId: evento!.id!,
+          versao: evento.imagemAtualizadaEm?.millisecondsSinceEpoch ?? 0,
+          fit: BoxFit.cover,
+        );
+      }
+      return Container(
+        color: theme.colorScheme.surfaceContainerHigh,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.image_outlined,
+              size: 36,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Nenhuma imagem escolhida',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _rotuloSecao('Imagem do evento', Icons.image_outlined, theme),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(PlacezTokens.espMd),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ClipRRect(
+                  borderRadius: PlacezTokens.bordaMd,
+                  child: SizedBox(height: 150, child: preview()),
+                ),
+                if (sugestao != null &&
+                    _imagemBytes == null &&
+                    !temImagemAtual) ...[
+                  const SizedBox(height: PlacezTokens.espMd),
+                  Text(
+                    'Sugestão do local',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: PlacezTokens.bordaMd,
+                    child: Image.asset(
+                      sugestao,
+                      height: 110,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stack) =>
+                          const SizedBox.shrink(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: _carregandoImagem ? null : _usarFotoDoLugar,
+                    icon: const Icon(Icons.auto_awesome, size: 18),
+                    label: const Text('Usar foto do local'),
+                  ),
+                ],
+                const SizedBox(height: PlacezTokens.espSm),
+                Wrap(
+                  spacing: PlacezTokens.espSm,
+                  runSpacing: PlacezTokens.espXs,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _carregandoImagem
+                          ? null
+                          : () => _escolherImagem(ImageSource.gallery),
+                      icon: const Icon(Icons.photo_library_outlined, size: 18),
+                      label: const Text('Galeria'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _carregandoImagem
+                          ? null
+                          : () => _escolherImagem(ImageSource.camera),
+                      icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                      label: const Text('Câmera'),
+                    ),
+                    if (_imagemBytes != null || temImagemAtual)
+                      TextButton.icon(
+                        onPressed: _carregandoImagem ? null : _removerImagem,
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        label: const Text('Remover'),
+                      ),
+                  ],
+                ),
+                if (_carregandoImagem) ...[
+                  const SizedBox(height: PlacezTokens.espSm),
+                  const LinearProgressIndicator(),
+                ],
+                const SizedBox(height: 6),
+                Text(
+                  'A imagem aparece no detalhe do evento e no calendário. '
+                  'Máximo de 600 KB.',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

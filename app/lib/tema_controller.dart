@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'preferencia_tema.dart';
 
 class TemaController extends ChangeNotifier {
@@ -18,7 +19,7 @@ class TemaController extends ChangeNotifier {
 
   Future<void> mudaModoTema(ThemeMode novoModo) async {
     if (_modoTema == novoModo) return;
-    
+
     _modoTema = novoModo;
     notifyListeners();
     await PreferenciaTema.salvaModoTema(novoModo);
@@ -26,7 +27,7 @@ class TemaController extends ChangeNotifier {
 
   Future<void> mudaSeedCor(Color novaCor) async {
     if (_seedCor == novaCor) return;
-    
+
     _seedCor = novaCor;
     notifyListeners();
     await PreferenciaTema.salvaSeedCor(novaCor);

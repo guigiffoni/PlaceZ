@@ -9,6 +9,10 @@ import '../../core/network/api_exception.dart';
 import '../../data/models/amizade.dart';
 import '../../data/models/conversa.dart';
 import '../../data/models/evento.dart';
+import '../../tema.dart';
+import '../widgets/avatar_usuario.dart';
+import '../widgets/imagem_evento.dart';
+import '../widgets/placez_componentes.dart';
 import '../widgets/seletor_mapa.dart';
 import 'cadastro.dart';
 import 'combinacao.dart';
@@ -428,16 +432,36 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                 children: [
                   if (_controller.erro != null) ...[
-                    _Aviso(
-                      mensagem: _controller.erro!,
+                    AvisoPlacez(
+                      _controller.erro!,
                       erro: true,
                       onFechar: _controller.limparErro,
                     ),
                     const SizedBox(height: 12),
                   ],
                   if (_controller.mostrandoCache) ...[
-                    const _Aviso(
-                      mensagem: 'Sem conexão com a API. Mostrando dados salvos no aparelho.',
+                    const AvisoPlacez(
+                      'Sem conexão com a API. Mostrando dados salvos no '
+                      'aparelho.',
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (evento.temImagem && evento.id != null) ...[
+                    ClipRRect(
+                      borderRadius: PlacezTokens.bordaLg,
+                      child: SizedBox(
+                        height: 180,
+                        width: double.infinity,
+                        child: ImagemEvento(
+                          auth: _controller.auth,
+                          eventoId: evento.id!,
+                          versao:
+                              evento
+                                  .imagemAtualizadaEm
+                                  ?.millisecondsSinceEpoch ??
+                              0,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -502,14 +526,14 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
                   if (!evento.cancelado) ...[
                     const SizedBox(height: 12),
                     if (!evento.confirmado)
-                      const _Aviso(
-                        mensagem:
-                            'Este evento está em rascunho. A data e as '
-                            'presenças serão definidas na aba Combinação.',
+                      const AvisoPlacez(
+                        'Este evento está em rascunho. A data e as presenças '
+                        'serão definidas na aba Combinação.',
                       )
                     else if (evento.souCriador)
-                      const _Aviso(
-                        mensagem: 'Você é o criador do evento e está confirmado automaticamente.',
+                      const AvisoPlacez(
+                        'Você é o criador do evento e está confirmado '
+                        'automaticamente.',
                       )
                     else
                       _acoesRsvp(evento, theme),
@@ -588,50 +612,61 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
   }
 
   Widget _cabecalho(Evento evento, ThemeData theme) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Text(
+    final paletaStatus = evento.cancelado
+        ? theme.colorScheme.cancelado
+        : evento.confirmado
+        ? theme.colorScheme.sucesso
+        : theme.colorScheme.rascunho;
+    final paletaPrivacidade = PaletaStatus(
+      fundo: theme.colorScheme.secondaryContainer,
+      frente: theme.colorScheme.onSecondaryContainer,
+      borda: theme.colorScheme.secondary.withValues(alpha: 0.3),
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(PlacezTokens.espLg),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: PlacezTokens.bordaLg,
+        border: Border.all(color: theme.colorScheme.bordaSutil),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
             evento.titulo,
             style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Wrap(
-          spacing: 6,
-          runSpacing: 4,
-          alignment: WrapAlignment.end,
-          children: [
-            Chip(
-              avatar: Icon(
-                evento.cancelado
-                    ? Icons.cancel_outlined
-                    : evento.confirmado
-                    ? Icons.check_circle
-                    : Icons.edit_note,
-                size: 16,
-              ),
-              label: Text(
-                evento.cancelado
+          const SizedBox(height: PlacezTokens.espMd),
+          Wrap(
+            spacing: PlacezTokens.espSm,
+            runSpacing: PlacezTokens.espSm,
+            children: [
+              StatusEventoChip(
+                rotulo: evento.cancelado
                     ? 'Cancelado'
                     : evento.confirmado
                     ? 'Confirmado'
                     : 'Rascunho',
+                icone: evento.cancelado
+                    ? Icons.cancel_outlined
+                    : evento.confirmado
+                    ? Icons.check_circle
+                    : Icons.edit_note,
+                paleta: paletaStatus,
               ),
-            ),
-            Chip(
-              avatar: Icon(
-                evento.privado ? Icons.lock_outline : Icons.public,
-                size: 16,
+              StatusEventoChip(
+                rotulo: evento.privado ? 'Privado' : 'Aberto',
+                icone: evento.privado ? Icons.lock_outline : Icons.public,
+                paleta: paletaPrivacidade,
               ),
-              label: Text(evento.privado ? 'Privado' : 'Aberto'),
-            ),
-          ],
-        ),
-      ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -643,6 +678,7 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
           Icons.check_circle_outline,
           'Vou',
           evento.contagem.vou,
+          paleta: theme.colorScheme.sucesso,
         ),
         const SizedBox(width: 8),
         _contagemItem(
@@ -650,6 +686,7 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
           Icons.help_outline,
           'Talvez',
           evento.contagem.talvez,
+          paleta: theme.colorScheme.alerta,
         ),
         const SizedBox(width: 8),
         _contagemItem(
@@ -666,26 +703,39 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
     ThemeData theme,
     IconData icone,
     String rotulo,
-    int valor,
-  ) {
+    int valor, {
+    PaletaStatus? paleta,
+  }) {
+    final fundo = paleta?.fundo ?? theme.colorScheme.surfaceContainerLow;
+    final frente = paleta?.frente ?? theme.colorScheme.onSurfaceVariant;
+    final borda = paleta?.borda ?? theme.colorScheme.bordaSutil;
+
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(10),
+          color: fundo,
+          borderRadius: PlacezTokens.bordaMd,
+          border: Border.all(color: borda),
         ),
         child: Column(
           children: [
-            Icon(icone, size: 20, color: theme.colorScheme.primary),
+            Icon(icone, size: 20, color: frente),
             const SizedBox(height: 4),
             Text(
               '$valor',
               style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w800,
+                color: paleta?.frente,
               ),
             ),
-            Text(rotulo, style: theme.textTheme.labelSmall),
+            Text(
+              rotulo,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: paleta?.frente,
+              ),
+            ),
           ],
         ),
       ),
@@ -803,8 +853,8 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
 
   Widget _configuracoes(Evento evento, ThemeData theme) {
     if (!evento.souCriador) {
-      return _Aviso(
-        mensagem: evento.podeConvidar
+      return AvisoPlacez(
+        evento.podeConvidar
             ? 'O criador permitiu que membros também convidem amigos.'
             : 'Somente o criador pode convidar por enquanto.',
       );
@@ -853,7 +903,12 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
           };
 
     return ListTile(
-      leading: CircleAvatar(child: Text(_iniciais(convidado.usuario.nome))),
+      leading: AvatarUsuario(
+        auth: _controller.auth,
+        usuarioId: convidado.usuario.id,
+        nome: convidado.usuario.nome,
+        raio: 20,
+      ),
       title: Text(convidado.usuario.nome),
       subtitle: Text('${convidado.usuario.identificador} · $rsvp'),
       trailing: evento.souCriador && !convidado.isCriador
@@ -887,17 +942,6 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
     return '$dia/$mes/${local.year} às $hora:$minuto';
   }
 
-  String _iniciais(String nome) {
-    final partes = nome
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((parte) => parte.isNotEmpty)
-        .toList();
-    if (partes.isEmpty) return '?';
-    if (partes.length == 1) return partes.first[0].toUpperCase();
-    return '${partes.first[0]}${partes.last[0]}'.toUpperCase();
-  }
-
   void _abrirMapa(Evento evento) {
     final local = evento.local;
     if (local?.latitude == null || local?.longitude == null) return;
@@ -907,57 +951,6 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
           posicaoInicial: LatLng(local!.latitude!, local.longitude!),
           apenasVisualizacao: true,
         ),
-      ),
-    );
-  }
-}
-
-class _Aviso extends StatelessWidget {
-  final String mensagem;
-  final VoidCallback? onFechar;
-  final bool erro;
-
-  const _Aviso({required this.mensagem, this.onFechar, this.erro = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final fundo = erro
-        ? theme.colorScheme.errorContainer
-        : theme.colorScheme.secondaryContainer;
-    final frente = erro
-        ? theme.colorScheme.onErrorContainer
-        : theme.colorScheme.onSecondaryContainer;
-
-    return Container(
-      padding: EdgeInsets.fromLTRB(12, 10, onFechar == null ? 12 : 4, 10),
-      decoration: BoxDecoration(
-        color: fundo,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            erro ? Icons.error_outline : Icons.info_outline,
-            color: frente,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              mensagem,
-              style: theme.textTheme.bodySmall?.copyWith(color: frente),
-            ),
-          ),
-          if (onFechar != null)
-            IconButton(
-              onPressed: onFechar,
-              icon: Icon(Icons.close, size: 18, color: frente),
-              tooltip: 'Fechar aviso',
-              visualDensity: VisualDensity.compact,
-            ),
-        ],
       ),
     );
   }

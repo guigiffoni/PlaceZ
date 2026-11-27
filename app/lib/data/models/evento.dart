@@ -99,6 +99,8 @@ class Evento {
   final RsvpStatus? meuRsvp;
   final bool souCriador;
   final bool podeConvidar;
+  final bool temImagem;
+  final DateTime? imagemAtualizadaEm;
 
   Evento({
     this.id,
@@ -114,6 +116,8 @@ class Evento {
     this.status = 'CONFIRMADO',
     this.criadoEm,
     this.atualizadoEm,
+    this.temImagem = false,
+    this.imagemAtualizadaEm,
     this.convidados = const [],
     this.contagem = ContagemRsvp.vazia,
     this.meuRsvp,
@@ -141,6 +145,8 @@ class Evento {
     String? status,
     DateTime? criadoEm,
     DateTime? atualizadoEm,
+    bool? temImagem,
+    DateTime? imagemAtualizadaEm,
     List<ConvidadoEvento>? convidados,
     ContagemRsvp? contagem,
     RsvpStatus? meuRsvp,
@@ -162,6 +168,8 @@ class Evento {
       status: status ?? this.status,
       criadoEm: criadoEm ?? this.criadoEm,
       atualizadoEm: atualizadoEm ?? this.atualizadoEm,
+      temImagem: temImagem ?? this.temImagem,
+      imagemAtualizadaEm: imagemAtualizadaEm ?? this.imagemAtualizadaEm,
       convidados: convidados ?? this.convidados,
       contagem: contagem ?? this.contagem,
       meuRsvp: meuRsvp ?? this.meuRsvp,
@@ -203,6 +211,8 @@ class Evento {
       status: (json['status'] ?? 'CONFIRMADO').toString(),
       criadoEm: _comoData(json['criadoEm']),
       atualizadoEm: _comoData(json['atualizadoEm']),
+      temImagem: json['temImagem'] == true,
+      imagemAtualizadaEm: _comoData(json['imagemAtualizadaEm']),
       convidados: convidados is List
           ? convidados
                 .whereType<Map>()

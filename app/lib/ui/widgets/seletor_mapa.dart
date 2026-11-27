@@ -30,11 +30,26 @@ class _SeletorMapaState extends State<SeletorMapa> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.apenasVisualizacao ? 'Local do Evento' : 'Toque no mapa para selecionar'),
+        title: Text(
+          widget.apenasVisualizacao
+              ? 'Local do Evento'
+              : 'Toque no mapa para selecionar',
+        ),
+        actions: [
+          if (!widget.apenasVisualizacao)
+            IconButton(
+              tooltip: 'Confirmar local',
+              onPressed: _pontoSelecionado == null
+                  ? null
+                  : () => Navigator.pop(context, _pontoSelecionado),
+              icon: const Icon(Icons.check),
+            ),
+        ],
       ),
       body: FlutterMap(
         options: MapOptions(
-          initialCenter: widget.posicaoInicial ?? const LatLng(-23.5505, -46.6333),
+          initialCenter:
+              widget.posicaoInicial ?? const LatLng(-19.9245, -43.9400),
           initialZoom: 15.0,
           onTap: widget.apenasVisualizacao
               ? null // Se for só visualização, não deixa selecionar
@@ -46,9 +61,11 @@ class _SeletorMapaState extends State<SeletorMapa> {
         ),
         children: [
           TileLayer(
-            urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-            subdomains: ['a', 'b', 'c', 'd'],
-            userAgentPackageName: 'com.seu_nome.placez',
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'br.pucminas.placez',
+          ),
+          const RichAttributionWidget(
+            attributions: [TextSourceAttribution('OpenStreetMap contributors')],
           ),
           if (_pontoSelecionado != null)
             MarkerLayer(
@@ -57,7 +74,11 @@ class _SeletorMapaState extends State<SeletorMapa> {
                   point: _pontoSelecionado!,
                   width: 40,
                   height: 40,
-                  child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
+                  child: const Icon(
+                    Icons.location_pin,
+                    color: Colors.red,
+                    size: 40,
+                  ),
                 ),
               ],
             ),

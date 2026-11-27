@@ -54,6 +54,9 @@ Códigos usados nesta fase:
 | 409 | `CONVERSA_BLOQUEADA` | Há bloqueio entre os participantes da conversa. |
 | 409 | `CONVERSA_NAO_PERMITIDA` | A conversa direta exige amizade confirmada. |
 | 404 | `CHAT_NAO_ENCONTRADO` | O evento ainda não tem chat. |
+| 404 | `GRUPO_NAO_ENCONTRADO` | Grupo inexistente ou usuário não é membro. |
+| 404 | `FOTO_NAO_ENCONTRADA` | O usuário não tem foto de perfil. |
+| 400 | `SEM_LOCALIZACAO` | Nenhuma pessoa selecionada divulgou localização aproximada. |
 | 503 | `BANCO_INDISPONIVEL` | Oracle não configurado ou indisponível. |
 | 503 | `AUTENTICACAO_INDISPONIVEL` | Dependência bcryptjs ausente. |
 | 500 | `ERRO_INTERNO` | Erro inesperado. |
@@ -135,14 +138,49 @@ Privado. Resposta `200`:
 }
 ```
 
+### `PATCH /me`
+
+Privado. Edita o nome do perfil. O username não é alterado nesta versão.
+
+```json
+{ "nome": "Ana Souza" }
+```
+
+Resposta `200` com o usuário atualizado. Nome entre 2 e 120 caracteres.
+
+### `PUT /me/foto`
+
+Privado. Envia a foto de perfil como base64. Limite de 512 KB por imagem.
+Formatos aceitos: JPEG, PNG e WebP (o MIME é validado pelo conteúdo).
+
+```json
+{
+  "imagemBase64": "/9j/4AAQSkZJRg...",
+  "mime": "image/jpeg"
+}
+```
+
+Resposta `200` com `{ "mime": "image/jpeg", "tamanho": 10166, "atualizadoEm": "..." }`.
+A foto fica em `usuario.foto` (BLOB) no Oracle.
+
+### `DELETE /me/foto`
+
+Privado. Remove a foto. Resposta `204`.
+
+### `GET /usuarios/:id/foto`
+
+Privado. Retorna a imagem com o `Content-Type` original. `404 FOTO_NAO_ENCONTRADA`
+quando o usuário não tem foto. O app usa esse endpoint para exibir avatares.
+
 ## Amigos (Fase 2)
 
 Todas as rotas abaixo são privadas.
 
-### `GET /usuarios/busca?q=`
+### `GET /usuarios/busca?q=&pagina=&limite=`
 
-Busca por username (mínimo de 2 caracteres, até 20 resultados). Exclui o
-próprio usuário e usuários com bloqueio em qualquer direção.
+Busca por username (mínimo de 2 caracteres). Exclui o próprio usuário e
+usuários com bloqueio em qualquer direção. `pagina` começa em 1; `limite` vai
+de 1 a 50 (padrão 20).
 
 ```json
 {
@@ -152,7 +190,10 @@ próprio usuário e usuários com bloqueio em qualquer direção.
       "relacao": "nenhuma",
       "solicitacaoId": null
     }
-  ]
+  ],
+  "pagina": 1,
+  "limite": 20,
+  "temMais": false
 }
 ```
 
@@ -167,11 +208,20 @@ identifica o registro.
   "amigos": [
     {
       "amizadeId": 10,
-      "usuario": { "id": 2, "nome": "Bruno Lima", "username": "bruno" }
+      "usuario": { "id": 2, "nome": "Bruno Lima", "username": "bruno" },
+      "localizacaoAproximada": {
+        "bairro": "Pampulha",
+        "cidade": "Belo Horizonte"
+      },
+      "favorito": false
     }
   ]
 }
 ```
+
+`localizacaoAproximada` é `null` quando o amigo não divulga localização.
+Nenhuma coordenada é exposta. `favorito` é individual: cada usuário fixa os
+próprios amigos.
 
 ### `GET /amigos/solicitacoes`
 
@@ -237,6 +287,15 @@ Somente o solicitante e apenas enquanto estiver pendente. Resposta `204`.
 
 Remove uma amizade aceita em qualquer direção. Resposta `204`.
 
+### `PUT /amigos/:usuarioId/favorito`
+
+Fixa o amigo no topo da lista. Só é permitido para amizades confirmadas.
+Resposta `200`: `{ "favorito": true }`.
+
+### `DELETE /amigos/:usuarioId/favorito`
+
+Remove o favorito. Resposta `200`: `{ "favorito": false }`.
+
 ### `GET /bloqueios`
 
 ```json
@@ -296,6 +355,8 @@ Formato do evento retornado pela API:
   "privado": true,
   "permitirMembrosConvidar": false,
   "status": "CONFIRMADO",
+  "temImagem": false,
+  "imagemAtualizadaEm": null,
   "criadoEm": "2026-11-08T12:00:00.000Z",
   "atualizadoEm": "2026-11-08T12:00:00.000Z",
   "meuRsvp": "VOU",
@@ -399,10 +460,30 @@ Regras:
   entre quem convida, o criador e o convidado. Duplicados e o próprio criador
   são devolvidos em `convidadosIgnorados`.
 
+### `GET /eventos/gerenciaveis`
+
+Lista os eventos em que o usuário é criador e pode alterar o local. Inclui
+rascunhos e confirmados; exclui cancelados.
+
+```json
+{
+  "eventos": [
+    {
+      "id": 42,
+      "titulo": "Rolê com C 1",
+      "inicioEm": "2026-11-23T20:00:00.000Z",
+      "status": "CONFIRMADO",
+      "localNome": "Praça Sete"
+    }
+  ]
+}
+```
+
 ### `GET /eventos/:id`
 
-Resposta `200` com `{ "evento": { ... } }`, incluindo `convidados`. Retorna
-`404 EVENTO_NAO_ENCONTRADO` para quem não é criador nem convidado.
+Resposta `200` com `{ "evento": { ... } }`, incluindo `convidados` e
+`temImagem`. Retorna `404 EVENTO_NAO_ENCONTRADO` para quem não é criador nem
+convidado.
 
 ### `PATCH /eventos/:id`
 
@@ -415,6 +496,31 @@ Somente o criador. Aceita qualquer subconjunto de `titulo`, `descricao`,
 Somente o criador. Marca `status = CANCELADO` e responde `204`. Eventos
 cancelados somem da listagem e do calendário; o detalhe continua acessível a
 quem já participava.
+
+### `PUT /eventos/:id/imagem`
+
+Somente o criador. Corpo com a imagem em base64 e o MIME:
+
+```json
+{ "imagemBase64": "...", "mime": "image/jpeg" }
+```
+
+Aceita JPEG, PNG ou WebP de até 600 KB; o servidor valida o conteúdo real da
+imagem. Resposta `200`:
+
+```json
+{ "temImagem": true, "atualizadaEm": "2026-11-27T23:15:40.391Z" }
+```
+
+### `GET /eventos/:id/imagem`
+
+Retorna os bytes da imagem com o `Content-Type` correto. Visível apenas para
+quem pode ver o evento (criador ou convidado). Sem imagem:
+`404 IMAGEM_NAO_ENCONTRADA`.
+
+### `DELETE /eventos/:id/imagem`
+
+Somente o criador. Remove a imagem e responde `204`.
 
 ### `POST /eventos/:id/convidados`
 
@@ -607,6 +713,7 @@ pela última mensagem (decrescente).
       },
       "criadoEm": "2026-11-25T21:00:00.000Z",
       "atualizadoEm": "2026-11-25T22:00:00.000Z",
+      "naoLidas": 0,
       "bloqueada": false,
       "podeEnviar": true
     }
@@ -617,6 +724,28 @@ pela última mensagem (decrescente).
 `bloqueada` indica bloqueio em qualquer direção. `podeEnviar` exige amizade
 confirmada e ausência de bloqueio. O histórico continua legível após um
 bloqueio ou remoção de amizade; apenas o envio é desabilitado.
+
+`naoLidas` conta mensagens de outros participantes depois da última leitura
+registrada pelo usuário. Mensagens próprias nunca contam.
+
+### `DELETE /conversas/:id`
+
+Apaga a conversa **apenas para o usuário**. A conversa some da lista e o
+cache local pode ser limpo; se chegar uma mensagem nova, ela volta a
+aparecer. Resposta `204`. Erros: `404 CONVERSA_NAO_ENCONTRADA` quando o
+usuário não participa.
+
+### `POST /conversas/:id/lido`
+
+```json
+{ "ultimaMensagemId": 12 }
+```
+
+Marca a conversa como lida até a mensagem informada. O campo é opcional; sem
+ele, o backend usa a mensagem mais recente. A marcação nunca regride (usa a
+maior mensagem já registrada). Resposta `204`.
+
+Erros: `404 CONVERSA_NAO_ENCONTRADA` para não participante.
 
 ### `POST /conversas/diretas`
 
@@ -694,10 +823,258 @@ Visível ao criador e aos convidados do evento. Retorna
 - Não há criação de chat de evento por convidados nem chat de grupo entre
   amigos no MVP.
 
-## Previsto para as próximas fases
+## Locais e localização aproximada (P1)
 
-Os contratos abaixo serão implementados nas fases correspondentes; ainda não
-existem endpoints funcionais para eles.
+O catálogo real fica em `catalogo_lugar` e é carregado por
+`sql/seed_catalogo_bh.sql` (região metropolitana de BH).
+
+A localização do perfil é **aproximada**. O app escolhe um ponto por mapa,
+GPS, busca ou latitude/longitude, faz o reverse geocoding via Nominatim e
+envia apenas o **bairro/cidade** e uma **coordenada arredondada** (duas casas
+decimais). A localização exata não é armazenada nem exposta. Amigos e o
+organizador do evento veem apenas o bairro/cidade.
+
+`GET /regioes` permanece apenas como legado para perfis antigos e não é usado
+pelo fluxo novo.
+
+### `GET /me/localizacao`
+
+Privado. Retorna a localização aproximada do usuário ou `null`:
+
+```json
+{
+  "localizacao": {
+    "bairro": "Savassi",
+    "cidade": "Belo Horizonte",
+    "latitude": -19.94,
+    "longitude": -43.93,
+    "origem": "MAPA",
+    "aproximada": true
+  }
+}
+```
+
+`origem` indica como o usuário escolheu o ponto: `MAPA`, `GPS`, `BUSCA` ou
+`COORDENADAS`. Perfis antigos trazem `origem: "REGIAO"` e `legado: true`.
+
+### `PUT /me/localizacao`
+
+```json
+{
+  "bairro": "Savassi",
+  "cidade": "Belo Horizonte",
+  "latitude": -19.93842,
+  "longitude": -43.93358,
+  "origem": "MAPA"
+}
+```
+
+O servidor arredonda a coordenada para duas casas decimais e descarta o ponto
+exato. Bairro é obrigatório; cidade é opcional. `origem` aceita `MAPA`, `GPS`,
+`BUSCA` ou `COORDENADAS`.
+
+### `DELETE /me/localizacao`
+
+Remove a divulgação. Resposta `200` com `{ "localizacao": null }`.
+
+### `GET /locais/catalogo?q=`
+
+Privado. Busca no catálogo real por nome, endereço, categoria ou cidade.
+Retorna até 100 lugares com coordenadas do estabelecimento (não dos
+usuários), distância em relação à localização aproximada do usuário,
+avaliação média e faixa de preço.
+
+- Com localização divulgada: ordena por `distanciaMetros` crescente.
+- Sem localização: `distanciaMetros` é `null`, `temLocalizacao` é `false` e
+  a ordem passa a ser avaliação/nome.
+
+```json
+{
+  "temLocalizacao": true,
+  "locais": [
+    {
+      "id": 1,
+      "nome": "Mercado Central de Belo Horizonte",
+      "endereco": "Av. Augusto de Lima, 744 - Centro",
+      "categoria": "Mercado",
+      "cidade": "Belo Horizonte",
+      "latitude": -19.9245,
+      "longitude": -43.942,
+      "descricao": "Tradicional mercado de BH com bancas de comida mineira...",
+      "faixaPreco": "R$ 20–80",
+      "avaliacaoMedia": 4.8,
+      "avaliacaoTotal": 2450,
+      "distanciaMetros": 646
+    }
+  ]
+}
+```
+
+`avaliacaoMedia` é arredondada para uma casa decimal (4,95 vira 5,0). O total
+combina a base curada com as avaliações reais dos usuários.
+
+### `GET /locais/catalogo/:id`
+
+Privado. Retorna o detalhe do lugar com `itens`, `avaliacoes` (até 50,
+incluindo comentários editoriais) e `minhaAvaliacao`.
+
+```json
+{
+  "lugar": {
+    "id": 4,
+    "nome": "Praça da Liberdade",
+    "avaliacaoMedia": 4.8,
+    "avaliacaoTotal": 2100,
+    "distanciaMetros": 275,
+    "itens": ["Museus", "Jardins", "Eventos culturais"],
+    "avaliacoes": [
+      {
+        "id": 14,
+        "usuarioId": 23,
+        "autorNome": "Apogeu",
+        "autorUsername": "smoke.a.1795467841",
+        "nota": 5,
+        "comentario": "Ótimo lugar para caminhar.",
+        "criadoEm": "2026-11-27T22:46:55.317Z",
+        "minha": true
+      }
+    ],
+    "minhaAvaliacao": {
+      "id": 14,
+      "nota": 5,
+      "comentario": "Ótimo lugar para caminhar.",
+      "minha": true
+    }
+  }
+}
+```
+
+Erro: `404 LUGAR_NAO_ENCONTRADO`.
+
+### `PUT /locais/catalogo/:id/avaliacao`
+
+```json
+{ "nota": 5, "comentario": "Ótimo lugar para caminhar." }
+```
+
+Cria ou atualiza a avaliação do usuário (uma por lugar). `nota` é inteiro de
+1 a 5; `comentario` é opcional, até 1000 caracteres. Resposta `200`:
+
+```json
+{
+  "avaliacao": { "id": 14, "nota": 5, "comentario": "..." },
+  "avaliacaoMedia": 4.8,
+  "avaliacaoTotal": 2101
+}
+```
+
+### `DELETE /locais/catalogo/:id/avaliacao`
+
+Remove a avaliação do usuário. Resposta `200` com `avaliacaoMedia` e
+`avaliacaoTotal` recalculados.
+
+### `POST /locais/sugestoes`
+
+```json
+{ "usuarioIds": [23, 24, 61], "modo": "todos" }
+```
+
+Sugere locais do catálogo ordenados pela **média das distâncias** entre o
+local e as localizações aproximadas das pessoas selecionadas.
+
+- `modo`: `todos`, `alguns` ou `um` (o conjunto efetivo vem de `usuarioIds`).
+- Só é possível usar o próprio usuário e amigos confirmados, sem bloqueio.
+- Pessoas sem localização entram em `semLocalizacao` e não afetam a média.
+- `localizacoesAproximadas` expõe apenas bairro/cidade dos participantes, para
+  amigos e para o organizador que está definindo o evento.
+- Retorna até 15 sugestões. Nenhuma coordenada de pessoa é devolvida.
+
+```json
+{
+  "sugestoes": [
+    { "lugar": { "nome": "Casa do Baile", "cidade": "Belo Horizonte" }, "distanciaMediaMetros": 394 }
+  ],
+  "semLocalizacao": [{ "usuarioId": 62, "nome": "Abel Smoke" }],
+  "localizacoesAproximadas": [
+    { "usuarioId": 23, "nome": "Apogeu", "bairro": "Savassi", "cidade": "Belo Horizonte" }
+  ],
+  "modo": "todos"
+}
+```
+
+Erros: `400 VALIDACAO` para usuários inválidos/não amigos e
+`400 SEM_LOCALIZACAO` quando nenhuma pessoa selecionada divulgou localização.
+
+## Grupos (P1)
+
+Chat em grupo entre amigos, independente do chat de evento.
+
+### `POST /grupos`
+
+```json
+{ "nome": "Futebol de quinta", "usuarioIds": [2, 3] }
+```
+
+Somente amigos confirmados podem ser adicionados; o criador entra
+automaticamente como `CRIADOR`. Cria também a conversa `tipo = GRUPO`.
+Resposta `201` com `{ "grupo": { ... }, "conversa": { ... } }`.
+
+### `GET /grupos/:id`
+
+Visível apenas para membros. Retorna nome, criador, `conversaId`,
+`membrosPodemAdicionar` e membros com `papel` (`CRIADOR`/`MEMBRO`) e
+`criadoEm` (data em que entrou no grupo).
+
+### `PATCH /grupos/:id`
+
+```json
+{ "membrosPodemAdicionar": true }
+```
+
+Somente o administrador. Define se membros comuns podem adicionar pessoas.
+Resposta `200` com o grupo atualizado.
+
+### `PATCH /grupos/:id/admin`
+
+```json
+{ "usuarioId": 4 }
+```
+
+Somente o administrador atual. Transfere a administração para outro membro;
+o antigo administrador passa a `MEMBRO`. Resposta `200` com o grupo
+atualizado.
+
+### `POST /grupos/:id/membros`
+
+```json
+{ "usuarioIds": [4] }
+```
+
+O administrador sempre pode adicionar. Membros comuns só podem quando
+`membrosPodemAdicionar = true`. Em ambos os casos, o novo membro precisa ser
+amigo confirmado de quem adiciona. Resposta `200` com o grupo atualizado.
+
+### `DELETE /grupos/:id/membros/:usuarioId`
+
+Somente o administrador. Remove um membro (para sair de si mesmo, use
+`POST /grupos/:id/sair`). Resposta `200` com o grupo atualizado.
+
+### `POST /grupos/:id/sair`
+
+Qualquer membro. Remove a participação e o acesso ao grupo/conversa. Se o
+criador sair, a liderança passa para o membro mais antigo; se for o último
+membro, o grupo e a conversa são removidos. Resposta `204`.
+
+### Conversa do grupo
+
+- `GET /conversas` inclui itens com `tipo = GRUPO`, `grupoId` e `titulo` com o
+  nome do grupo.
+- Mensagens usam `GET/POST /conversas/:id/mensagens`.
+- Apenas membros leem e enviam; ao sair, o histórico deixa de ser acessível.
+- Bloqueios entre amigos não removem membros existentes; novas adições exigem
+  amizade e ausência de bloqueio.
+
+## Previsto para as próximas fases
 
 ### FCM (Fase 8)
 
@@ -708,7 +1085,8 @@ existem endpoints funcionais para eles.
 
 Com `api_mode = mock`, o Flutter usa um backend mock stateful em memória e
 persistido em `SharedPreferences`, cobrindo autenticação, amigos, eventos,
-calendário, combinação de dias, conversas 1:1 e chat de evento (Fases 1–7).
+calendário, combinação de dias, conversas 1:1, chat de evento e grupos (Fases
+1–7 + P1 de grupos).
 As rotas ainda não implementadas no mock continuam caindo em
 `assets/mock/api_responses.json`, cujas chaves usam o formato
 `"MÉTODO /caminho"`.

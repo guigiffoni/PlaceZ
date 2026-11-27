@@ -27,11 +27,13 @@ class Conversa {
   final int id;
   final String tipo;
   final int? eventoId;
+  final int? grupoId;
   final UsuarioResumo? outroUsuario;
   final String? tituloCache;
   final UltimaMensagem? ultimaMensagem;
   final DateTime? criadoEm;
   final DateTime? atualizadoEm;
+  final int naoLidas;
   final bool bloqueada;
   final bool podeEnviar;
 
@@ -39,11 +41,13 @@ class Conversa {
     required this.id,
     this.tipo = 'DIRETA',
     this.eventoId,
+    this.grupoId,
     this.outroUsuario,
     this.tituloCache,
     this.ultimaMensagem,
     this.criadoEm,
     this.atualizadoEm,
+    this.naoLidas = 0,
     this.bloqueada = false,
     this.podeEnviar = true,
   });
@@ -76,6 +80,7 @@ class Conversa {
       id: id,
       tipo: (json['tipo'] ?? 'DIRETA').toString(),
       eventoId: _comoInt(json['eventoId']),
+      grupoId: _comoInt(json['grupoId']),
       outroUsuario: outro is Map
           ? UsuarioResumo.fromJson(Map<String, dynamic>.from(outro))
           : null,
@@ -85,6 +90,7 @@ class Conversa {
           : null,
       criadoEm: _comoData(json['criadoEm']),
       atualizadoEm: _comoData(json['atualizadoEm']),
+      naoLidas: _comoInt(json['naoLidas']) ?? 0,
       bloqueada: _comoBool(json['bloqueada']),
       podeEnviar: _comoBool(json['podeEnviar'], padrao: true),
     );

@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/chat/chat_repository.dart';
@@ -6,6 +9,8 @@ import '../../core/chat/polling_service.dart';
 import '../../core/network/api_exception.dart';
 import '../../data/dao/chat_dao.dart';
 import '../../data/models/conversa.dart';
+import '../../tema.dart';
+import 'grupo.dart';
 
 class TelaConversa extends StatefulWidget {
   final AuthController authController;
@@ -15,6 +20,8 @@ class TelaConversa extends StatefulWidget {
   final bool podeEnviarInicial;
   final bool bloqueadaInicial;
   final bool ehEvento;
+  final bool ehGrupo;
+  final int? grupoId;
 
   const TelaConversa({
     super.key,
@@ -25,6 +32,8 @@ class TelaConversa extends StatefulWidget {
     this.podeEnviarInicial = true,
     this.bloqueadaInicial = false,
     this.ehEvento = false,
+    this.ehGrupo = false,
+    this.grupoId,
   });
 
   @override
@@ -120,6 +129,9 @@ class _TelaConversaState extends State<TelaConversa>
         _erro = null;
       });
       await _cache.salvarMensagens(mensagens);
+      if (mensagens.isNotEmpty) {
+        unawaited(_marcarLida(mensagens.last.id));
+      }
       _agendarScroll();
     } on ApiException catch (erro) {
       if (!mounted) return;
@@ -170,6 +182,7 @@ class _TelaConversaState extends State<TelaConversa>
         _erro = null;
       });
       await _cache.salvarMensagens(filtradas);
+      unawaited(_marcarLida(_ultimaId));
       if (estavaNoFinal) _agendarScroll();
     } catch (_) {
       // O polling silencioso não interrompe a conversa por falha de rede.
@@ -198,6 +211,7 @@ class _TelaConversaState extends State<TelaConversa>
         _ultimaId = _mensagens.last.id;
       });
       await _cache.salvarMensagens([mensagem]);
+      unawaited(_marcarLida(_ultimaId));
       _agendarScroll();
     } on ApiException catch (erro) {
       if (!mounted) return;
@@ -213,6 +227,36 @@ class _TelaConversaState extends State<TelaConversa>
       if (mounted) _avisar('Não foi possível enviar a mensagem: $erro');
     } finally {
       if (mounted) setState(() => _enviando = false);
+    }
+  }
+
+  Future<void> _abrirGrupo() async {
+    final grupoId = widget.grupoId;
+    if (grupoId == null) return;
+
+    final saiu = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) => TelaGrupo(
+          authController: widget.authController,
+          grupoId: grupoId,
+          nomeInicial: widget.titulo,
+        ),
+      ),
+    );
+    if (saiu == true && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _marcarLida(int ultimaId) async {
+    if (ultimaId <= 0) return;
+    try {
+      await _repositorio.marcarLida(
+        widget.conversaId,
+        ultimaMensagemId: ultimaId,
+      );
+    } catch (_) {
+      // A marcação de leitura é best-effort; o polling tenta novamente.
     }
   }
 
@@ -245,7 +289,21 @@ class _TelaConversaState extends State<TelaConversa>
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.titulo)),
+      appBar: AppBar(
+        title: Text(
+          widget.titulo,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        actions: [
+          if (widget.ehGrupo && widget.grupoId != null)
+            IconButton(
+              tooltip: 'Membros do grupo',
+              onPressed: _abrirGrupo,
+              icon: const Icon(Icons.people_outline),
+            ),
+        ],
+      ),
       body: Column(
         children: [
           if (_bloqueada)
@@ -318,6 +376,20 @@ class _TelaConversaState extends State<TelaConversa>
       );
     }
 
+    final itens = <Widget>[];
+    DateTime? diaAnterior;
+    for (final mensagem in _mensagens) {
+      final data = mensagem.criadoEm?.toLocal();
+      if (data != null) {
+        final dia = DateTime(data.year, data.month, data.day);
+        if (diaAnterior == null || !dia.isAtSameMomentAs(diaAnterior)) {
+          itens.add(_separadorData(dia, theme));
+          diaAnterior = dia;
+        }
+      }
+      itens.add(_bolha(mensagem, theme));
+    }
+
     return Column(
       children: [
         if (_mostrandoCache)
@@ -333,45 +405,98 @@ class _TelaConversaState extends State<TelaConversa>
             ),
           ),
         Expanded(
-          child: ListView.builder(
+          child: ListView(
             controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-            itemCount: _mensagens.length,
-            itemBuilder: (context, index) {
-              final mensagem = _mensagens[index];
-              return _bolha(mensagem, theme);
-            },
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            children: itens,
           ),
         ),
       ],
     );
   }
 
+  Widget _separadorData(DateTime dia, ThemeData theme) {
+    final hoje = DateTime.now();
+    final referencia = DateTime(hoje.year, hoje.month, hoje.day);
+    final ontem = referencia.subtract(const Duration(days: 1));
+
+    final String rotulo;
+    if (dia.isAtSameMomentAs(referencia)) {
+      rotulo = 'Hoje';
+    } else if (dia.isAtSameMomentAs(ontem)) {
+      rotulo = 'Ontem';
+    } else {
+      rotulo = _capitalizar(
+        DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(dia),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: theme.colorScheme.bordaSutil)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              rotulo,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(child: Divider(color: theme.colorScheme.bordaSutil)),
+        ],
+      ),
+    );
+  }
+
+  String _capitalizar(String texto) {
+    if (texto.isEmpty) return texto;
+    return texto[0].toUpperCase() + texto.substring(1);
+  }
+
   Widget _bolha(Mensagem mensagem, ThemeData theme) {
     final minha = mensagem.ehMinha(_meuId);
     final fundo = minha
         ? theme.colorScheme.primaryContainer
-        : theme.colorScheme.surfaceContainerHighest;
+        : theme.colorScheme.surfaceContainerHigh;
     final frente = minha
         ? theme.colorScheme.onPrimaryContainer
         : theme.colorScheme.onSurface;
+    final raio = Radius.circular(PlacezTokens.raioLg);
+    final canto = const Radius.circular(6);
+    final larguraMaxima = MediaQuery.sizeOf(context).width * 0.78;
 
     return Align(
       alignment: minha ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 320),
-        margin: const EdgeInsets.only(bottom: 8),
+        constraints: BoxConstraints(maxWidth: larguraMaxima.clamp(220, 420)),
+        margin: const EdgeInsets.only(bottom: PlacezTokens.espSm),
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
         decoration: BoxDecoration(
           color: fundo,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.only(
+            topLeft: raio,
+            topRight: raio,
+            bottomLeft: minha ? raio : canto,
+            bottomRight: minha ? canto : raio,
+          ),
+          border: Border.all(
+            color: minha
+                ? theme.colorScheme.primary.withValues(alpha: 0.18)
+                : theme.colorScheme.bordaSutil,
+          ),
         ),
         child: Column(
           crossAxisAlignment: minha
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start,
           children: [
-            if (widget.ehEvento && !minha && mensagem.autor != null) ...[
+            if ((widget.ehEvento || widget.ehGrupo) &&
+                !minha &&
+                mensagem.autor != null) ...[
               Text(
                 mensagem.autor!.nome,
                 style: theme.textTheme.labelSmall?.copyWith(

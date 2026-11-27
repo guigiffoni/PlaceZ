@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+
 import '../../data/models/local.dart';
 
 class MapaLocais extends StatelessWidget {
@@ -11,9 +12,9 @@ class MapaLocais extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Filtra locais que possuem coordenadas válidas
-    final locaisComCoordenadas = locais.where(
-      (l) => l.latitude != null && l.longitude != null,
-    ).toList();
+    final locaisComCoordenadas = locais
+        .where((l) => l.latitude != null && l.longitude != null)
+        .toList();
 
     return FlutterMap(
       options: const MapOptions(

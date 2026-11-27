@@ -66,6 +66,9 @@ class MockBackend {
     garante('proximo_opcao_enquete_id', 1);
     garante('proximo_conversa_id', 1);
     garante('proxima_mensagem_id', 1);
+    garante('proximo_grupo_id', 1);
+    garante('grupos', <dynamic>[]);
+    garante('grupo_membros', <dynamic>[]);
     garante('eventos', <dynamic>[]);
     garante('convidados_evento', <dynamic>[]);
     garante('enquetes', <dynamic>[]);
@@ -86,6 +89,7 @@ class MockBackend {
       'proximo_opcao_enquete_id': 1,
       'proximo_conversa_id': 1,
       'proxima_mensagem_id': 1,
+      'proximo_grupo_id': 1,
       'usuarios': [
         {
           'id': 1,
@@ -111,6 +115,8 @@ class MockBackend {
       'votos_enquete': <dynamic>[],
       'conversas': <dynamic>[],
       'mensagens': <dynamic>[],
+      'grupos': <dynamic>[],
+      'grupo_membros': <dynamic>[],
     };
   }
 
@@ -159,6 +165,28 @@ class MockBackend {
         return _listarConversas(token);
       case 'POST /conversas/diretas':
         return _criarConversaDireta(token, corpo);
+      case 'POST /grupos':
+        return _criarGrupo(token, corpo);
+    }
+
+    final grupoId = RegExp(r'^/grupos/(\d+)$').firstMatch(caminho);
+    if (grupoId != null) {
+      final id = int.parse(grupoId.group(1)!);
+      if (method == 'GET') return _consultarGrupo(token, id);
+    }
+
+    final membrosGrupo = RegExp(r'^/grupos/(\d+)/membros$').firstMatch(caminho);
+    if (method == 'POST' && membrosGrupo != null) {
+      return _adicionarMembrosGrupo(
+        token,
+        int.parse(membrosGrupo.group(1)!),
+        corpo,
+      );
+    }
+
+    final sairGrupo = RegExp(r'^/grupos/(\d+)/sair$').firstMatch(caminho);
+    if (method == 'POST' && sairGrupo != null) {
+      return _sairGrupo(token, int.parse(sairGrupo.group(1)!));
     }
 
     final mensagensConversa = RegExp(r'^/conversas/(\d+)/mensagens$')
@@ -999,7 +1027,7 @@ class MockBackend {
       ]);
     }
 
-    if (conversa['tipo'] != 'EVENTO') {
+    if (conversa['tipo'] == 'DIRETA') {
       final outroId = _outroDaConversa(conversa, meuId);
       if (_existeBloqueio(meuId, outroId)) {
         return _erro(
@@ -1044,6 +1072,9 @@ class MockBackend {
     if (tipo == 'EVENTO') {
       final evento = _eventoPorId(conversa['eventoId'] as int);
       titulo = evento?['titulo']?.toString();
+    } else if (tipo == 'GRUPO') {
+      final grupo = _grupoPorId(conversa['grupoId'] as int);
+      titulo = grupo?['nome']?.toString();
     } else {
       final outroId = _outroDaConversa(conversa, eu);
       final outro = _usuarioPorId(outroId);
@@ -1057,6 +1088,7 @@ class MockBackend {
       'id': conversa['id'],
       'tipo': tipo,
       'eventoId': conversa['eventoId'],
+      'grupoId': conversa['grupoId'],
       'titulo': titulo,
       'outroUsuario': outroJson,
       'ultimaMensagem': ultima == null
@@ -1115,6 +1147,9 @@ class MockBackend {
     if (conversa['tipo'] == 'EVENTO') {
       final evento = _eventoPorId(conversa['eventoId'] as int);
       return evento != null && _eventoVisivel(evento, eu);
+    }
+    if (conversa['tipo'] == 'GRUPO') {
+      return _grupoMembro(conversa['grupoId'] as int, eu) != null;
     }
     return conversa['usuarioAId'] == eu || conversa['usuarioBId'] == eu;
   }
@@ -1200,6 +1235,362 @@ class MockBackend {
       }
     }
     return ultima;
+  }
+
+  Future<MockResponse> _criarGrupo(
+    String? token,
+    Map<String, dynamic> corpo,
+  ) async {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final erros = <Map<String, String>>[];
+    final nome = (corpo['nome'] ?? '').toString().trim();
+    final ids = _lerIdsGrupoMock(corpo['usuarioIds'], erros);
+
+    if (nome.isEmpty || nome.length > 120) {
+      erros.add({
+        'campo': 'nome',
+        'mensagem': 'Informe um nome entre 1 e 120 caracteres.',
+      });
+    }
+    if (ids.isEmpty && erros.isEmpty) {
+      erros.add({
+        'campo': 'usuarioIds',
+        'mensagem': 'Selecione ao menos um amigo.',
+      });
+    }
+    if (erros.isNotEmpty) {
+      return _erro(400, 'VALIDACAO', 'Dados inválidos.', erros);
+    }
+
+    final validos = <int>[];
+    for (final usuarioId in ids) {
+      if (usuarioId == meuId) {
+        erros.add({
+          'campo': 'usuarioIds',
+          'mensagem': 'Você já participa do grupo.',
+        });
+        continue;
+      }
+      if (_usuarioPorId(usuarioId) == null) {
+        erros.add({
+          'campo': 'usuarioIds',
+          'mensagem': 'Usuário $usuarioId não encontrado.',
+        });
+        continue;
+      }
+      if (_existeBloqueio(meuId, usuarioId)) {
+        erros.add({
+          'campo': 'usuarioIds',
+          'mensagem': 'Há um bloqueio entre você e um dos usuários.',
+        });
+        continue;
+      }
+      final amizade = _amizadeDoPar(meuId, usuarioId);
+      if (amizade == null || amizade['status'] != 'A') {
+        erros.add({
+          'campo': 'usuarioIds',
+          'mensagem': 'Só é possível adicionar amigos confirmados.',
+        });
+        continue;
+      }
+      validos.add(usuarioId);
+    }
+
+    if (erros.isNotEmpty) {
+      return _erro(400, 'VALIDACAO', 'Dados inválidos.', erros);
+    }
+    if (validos.isEmpty) {
+      return _erro(400, 'VALIDACAO', 'Dados inválidos.', [
+        {
+          'campo': 'usuarioIds',
+          'mensagem': 'Selecione ao menos um amigo para o grupo.',
+        },
+      ]);
+    }
+
+    final grupoId = _dados['proximo_grupo_id'] as int;
+    _dados['proximo_grupo_id'] = grupoId + 1;
+    final conversaId = _dados['proximo_conversa_id'] as int;
+    _dados['proximo_conversa_id'] = conversaId + 1;
+    final agora = _agoraIso();
+
+    final grupo = <String, dynamic>{
+      'id': grupoId,
+      'nome': nome,
+      'criadorId': meuId,
+      'conversaId': conversaId,
+      'criadoEm': agora,
+    };
+    _grupos.add(grupo);
+    _grupoMembros.add({
+      'grupoId': grupoId,
+      'usuarioId': meuId,
+      'papel': 'CRIADOR',
+      'criadoEm': agora,
+    });
+    for (final usuarioId in validos) {
+      _grupoMembros.add({
+        'grupoId': grupoId,
+        'usuarioId': usuarioId,
+        'papel': 'MEMBRO',
+        'criadoEm': agora,
+      });
+    }
+
+    final conversa = <String, dynamic>{
+      'id': conversaId,
+      'tipo': 'GRUPO',
+      'grupoId': grupoId,
+      'criadoEm': agora,
+    };
+    _conversas.add(conversa);
+    await _salva();
+
+    return MockResponse(201, {
+      'grupo': _grupoJson(grupo),
+      'conversa': _conversaJson(conversa, meuId),
+    });
+  }
+
+  MockResponse _consultarGrupo(String? token, int grupoId) {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final grupo = _grupoPorId(grupoId);
+    if (grupo == null || _grupoMembro(grupoId, meuId) == null) {
+      return _erro(404, 'GRUPO_NAO_ENCONTRADO', 'Grupo não encontrado.');
+    }
+    return MockResponse(200, {'grupo': _grupoJson(grupo)});
+  }
+
+  Future<MockResponse> _adicionarMembrosGrupo(
+    String? token,
+    int grupoId,
+    Map<String, dynamic> corpo,
+  ) async {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final grupo = _grupoPorId(grupoId);
+    if (grupo == null) {
+      return _erro(404, 'GRUPO_NAO_ENCONTRADO', 'Grupo não encontrado.');
+    }
+    if (grupo['criadorId'] != meuId) {
+      return _erro(
+        403,
+        'SEM_PERMISSAO',
+        'Você não tem permissão para esta ação.',
+      );
+    }
+
+    final erros = <Map<String, String>>[];
+    final ids = _lerIdsGrupoMock(corpo['usuarioIds'], erros);
+    if (ids.isEmpty && erros.isEmpty) {
+      erros.add({
+        'campo': 'usuarioIds',
+        'mensagem': 'Selecione ao menos um amigo.',
+      });
+    }
+    if (erros.isNotEmpty) {
+      return _erro(400, 'VALIDACAO', 'Dados inválidos.', erros);
+    }
+
+    final existentes = _grupoMembros
+        .where((item) => item['grupoId'] == grupoId)
+        .map((item) => item['usuarioId'] as int)
+        .toSet();
+    final novos = <int>[];
+    for (final usuarioId in ids) {
+      if (usuarioId == meuId) {
+        erros.add({
+          'campo': 'usuarioIds',
+          'mensagem': 'Você já participa do grupo.',
+        });
+        continue;
+      }
+      if (_usuarioPorId(usuarioId) == null) {
+        erros.add({
+          'campo': 'usuarioIds',
+          'mensagem': 'Usuário $usuarioId não encontrado.',
+        });
+        continue;
+      }
+      if (_existeBloqueio(meuId, usuarioId)) {
+        erros.add({
+          'campo': 'usuarioIds',
+          'mensagem': 'Há um bloqueio entre você e um dos usuários.',
+        });
+        continue;
+      }
+      final amizade = _amizadeDoPar(meuId, usuarioId);
+      if (amizade == null || amizade['status'] != 'A') {
+        erros.add({
+          'campo': 'usuarioIds',
+          'mensagem': 'Só é possível adicionar amigos confirmados.',
+        });
+        continue;
+      }
+      if (!existentes.contains(usuarioId) && !novos.contains(usuarioId)) {
+        novos.add(usuarioId);
+      }
+    }
+
+    if (erros.isNotEmpty) {
+      return _erro(400, 'VALIDACAO', 'Dados inválidos.', erros);
+    }
+    if (novos.isEmpty) {
+      return _erro(400, 'VALIDACAO', 'Dados inválidos.', [
+        {
+          'campo': 'usuarioIds',
+          'mensagem': 'Nenhum membro novo para adicionar.',
+        },
+      ]);
+    }
+
+    for (final usuarioId in novos) {
+      _grupoMembros.add({
+        'grupoId': grupoId,
+        'usuarioId': usuarioId,
+        'papel': 'MEMBRO',
+        'criadoEm': _agoraIso(),
+      });
+    }
+    await _salva();
+    return MockResponse(200, {'grupo': _grupoJson(grupo)});
+  }
+
+  Future<MockResponse> _sairGrupo(String? token, int grupoId) async {
+    final eu = _usuarioDaSessao(token);
+    if (eu == null) return _sessaoInvalida();
+
+    final meuId = eu['id'] as int;
+    final grupo = _grupoPorId(grupoId);
+    if (grupo == null || _grupoMembro(grupoId, meuId) == null) {
+      return _erro(404, 'GRUPO_NAO_ENCONTRADO', 'Grupo não encontrado.');
+    }
+
+    if (grupo['criadorId'] == meuId) {
+      final outros = _grupoMembros
+          .where(
+            (item) => item['grupoId'] == grupoId && item['usuarioId'] != meuId,
+          )
+          .toList();
+      outros.sort((a, b) {
+        final porData = (a['criadoEm'] ?? '').toString().compareTo(
+          (b['criadoEm'] ?? '').toString(),
+        );
+        if (porData != 0) return porData;
+        return (a['usuarioId'] as int).compareTo(b['usuarioId'] as int);
+      });
+
+      if (outros.isEmpty) {
+        final conversa = _conversaDoGrupo(grupoId);
+        if (conversa != null) {
+          _mensagens.removeWhere(
+            (item) => item['conversaId'] == conversa['id'],
+          );
+          _conversas.remove(conversa);
+        }
+        _grupoMembros.removeWhere((item) => item['grupoId'] == grupoId);
+        _grupos.remove(grupo);
+        await _salva();
+        return const MockResponse(204, null);
+      }
+
+      final proximo = outros.first['usuarioId'] as int;
+      grupo['criadorId'] = proximo;
+      final membroProximo = _grupoMembro(grupoId, proximo);
+      if (membroProximo != null) membroProximo['papel'] = 'CRIADOR';
+    }
+
+    _grupoMembros.removeWhere(
+      (item) => item['grupoId'] == grupoId && item['usuarioId'] == meuId,
+    );
+    await _salva();
+    return const MockResponse(204, null);
+  }
+
+  Map<String, dynamic>? _grupoPorId(int id) {
+    for (final item in _grupos) {
+      if (item['id'] == id) return item as Map<String, dynamic>;
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _grupoMembro(int grupoId, int usuarioId) {
+    for (final item in _grupoMembros) {
+      if (item['grupoId'] == grupoId && item['usuarioId'] == usuarioId) {
+        return item as Map<String, dynamic>;
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _conversaDoGrupo(int grupoId) {
+    for (final item in _conversas) {
+      if (item['tipo'] == 'GRUPO' && item['grupoId'] == grupoId) {
+        return item as Map<String, dynamic>;
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic> _grupoJson(Map<String, dynamic> grupo) {
+    final grupoId = grupo['id'] as int;
+    final membros = _grupoMembros
+        .where((item) => item['grupoId'] == grupoId)
+        .map((item) {
+          final usuario = _usuarioPorId(item['usuarioId'] as int);
+          return {
+            'usuario': usuario == null ? null : _publico(usuario),
+            'papel': item['papel'],
+            'criadoEm': item['criadoEm'],
+          };
+        })
+        .toList();
+
+    return {
+      'id': grupoId,
+      'nome': grupo['nome'],
+      'criadorId': grupo['criadorId'],
+      'conversaId': grupo['conversaId'],
+      'criadoEm': grupo['criadoEm'],
+      'membros': membros,
+    };
+  }
+
+  List<int> _lerIdsGrupoMock(dynamic valor, List<Map<String, String>> erros) {
+    if (valor is! List || valor.isEmpty) {
+      erros.add({
+        'campo': 'usuarioIds',
+        'mensagem': 'Selecione ao menos um amigo.',
+      });
+      return const [];
+    }
+    final ids = <int>[];
+    for (final item in valor) {
+      final id = _comoInt(item);
+      if (id == null || id <= 0) {
+        erros.add({
+          'campo': 'usuarioIds',
+          'mensagem': 'A lista de membros contém um usuário inválido.',
+        });
+        continue;
+      }
+      if (!ids.contains(id)) ids.add(id);
+    }
+    if (ids.length > 50) {
+      erros.add({
+        'campo': 'usuarioIds',
+        'mensagem': 'Adicione no máximo 50 membros por vez.',
+      });
+    }
+    return ids;
   }
 
   Future<MockResponse> _criarEvento(
@@ -2557,6 +2948,8 @@ class MockBackend {
   List<dynamic> get _votosEnquete => _dados['votos_enquete'] as List<dynamic>;
   List<dynamic> get _conversas => _dados['conversas'] as List<dynamic>;
   List<dynamic> get _mensagens => _dados['mensagens'] as List<dynamic>;
+  List<dynamic> get _grupos => _dados['grupos'] as List<dynamic>;
+  List<dynamic> get _grupoMembros => _dados['grupo_membros'] as List<dynamic>;
 
   Map<String, dynamic>? _usuarioPorId(int id) {
     for (final usuario in _usuarios) {

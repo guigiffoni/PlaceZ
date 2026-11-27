@@ -2,6 +2,18 @@ import '../network/api_client.dart';
 import '../network/api_exception.dart';
 import '../../data/models/amizade.dart';
 
+class ResultadoBuscaPagina {
+  final List<ResultadoBuscaUsuario> usuarios;
+  final bool temMais;
+  final int pagina;
+
+  const ResultadoBuscaPagina({
+    required this.usuarios,
+    required this.temMais,
+    required this.pagina,
+  });
+}
+
 class FriendsRepository {
   final Future<String?> Function()? tokenProvider;
   final Future<void> Function()? onUnauthorized;
@@ -15,15 +27,28 @@ class FriendsRepository {
     );
   }
 
-  Future<List<ResultadoBuscaUsuario>> buscar(String termo) async {
+  Future<ResultadoBuscaPagina> buscar(
+    String termo, {
+    int pagina = 1,
+    int limite = 20,
+  }) async {
     final client = await _criarCliente();
     try {
       final resposta = await client.get(
         '/usuarios/busca',
-        query: {'q': termo.trim()},
+        query: {'q': termo.trim(), 'pagina': '$pagina', 'limite': '$limite'},
       );
       final mapa = _comoMapa(resposta);
-      return _converteLista(mapa['usuarios'], ResultadoBuscaUsuario.fromJson);
+      return ResultadoBuscaPagina(
+        usuarios: _converteLista(
+          mapa['usuarios'],
+          ResultadoBuscaUsuario.fromJson,
+        ),
+        temMais: mapa['temMais'] == true,
+        pagina: mapa['pagina'] is num
+            ? (mapa['pagina'] as num).toInt()
+            : pagina,
+      );
     } finally {
       client.close();
     }
@@ -83,6 +108,26 @@ class FriendsRepository {
 
   Future<void> remover(int usuarioId) async {
     await _acaoSimples((client) => client.delete('/amigos/$usuarioId'));
+  }
+
+  Future<bool> favoritar(int usuarioId) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.put('/amigos/$usuarioId/favorito');
+      return _comoMapa(resposta)['favorito'] == true;
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<bool> desfavoritar(int usuarioId) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.delete('/amigos/$usuarioId/favorito');
+      return _comoMapa(resposta)['favorito'] == true;
+    } finally {
+      client.close();
+    }
   }
 
   Future<List<Bloqueio>> listarBloqueios() async {

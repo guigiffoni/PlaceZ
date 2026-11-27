@@ -27,6 +27,8 @@ async function inicializar() {
       // conexão. Sem isso, conexao.execute() direto retorna arrays e rotas
       // como auth/friends/events quebram ao acessar linha.ID.
       oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
+      // Fotos de perfil (BLOB) chegam como Buffer, prontas para o HTTP.
+      oracledb.fetchAsBuffer = [oracledb.BLOB];
     } catch (erro) {
       ultimoErro = `driver oracledb indisponível: ${erro.message}`;
       return;

@@ -70,28 +70,23 @@ class BancoApp {
   }
 
   Future<void> _criarTabelas(Database db) async {
-    await db.execute(
-      '''CREATE TABLE IF NOT EXISTS cache_pessoa(
+    await db.execute('''CREATE TABLE IF NOT EXISTS cache_pessoa(
         id            INTEGER PRIMARY KEY,
         nome          TEXT NOT NULL,
         username      TEXT,
         atualizado_em INTEGER NOT NULL DEFAULT 0
-      );''',
-    );
+      );''');
 
-    await db.execute(
-      '''CREATE TABLE IF NOT EXISTS cache_amizade(
+    await db.execute('''CREATE TABLE IF NOT EXISTS cache_amizade(
         id               INTEGER PRIMARY KEY,
         outro_usuario_id INTEGER NOT NULL,
         status           TEXT NOT NULL,
         atualizado_em    INTEGER NOT NULL DEFAULT 0
-      );''',
-    );
+      );''');
 
     // Mantida para a seleção de local existente que ainda acompanha o
     // fluxo opcional de mapa/Nominatim. Não é fonte de verdade.
-    await db.execute(
-      '''CREATE TABLE IF NOT EXISTS cache_local(
+    await db.execute('''CREATE TABLE IF NOT EXISTS cache_local(
         id                INTEGER PRIMARY KEY,
         nome              TEXT,
         endereco          TEXT,
@@ -103,11 +98,9 @@ class BancoApp {
         categoria         TEXT,
         distancia_metros  REAL,
         atualizado_em     INTEGER NOT NULL DEFAULT 0
-      );''',
-    );
+      );''');
 
-    await db.execute(
-      '''CREATE TABLE IF NOT EXISTS cache_evento(
+    await db.execute('''CREATE TABLE IF NOT EXISTS cache_evento(
         id                        INTEGER PRIMARY KEY,
         titulo                    TEXT NOT NULL,
         descricao                 TEXT,
@@ -124,11 +117,9 @@ class BancoApp {
         local_endereco            TEXT,
         local_categoria           TEXT,
         local_distancia_metros    REAL
-      );''',
-    );
+      );''');
 
-    await db.execute(
-      '''CREATE TABLE IF NOT EXISTS cache_convidado(
+    await db.execute('''CREATE TABLE IF NOT EXISTS cache_convidado(
         evento_id     INTEGER NOT NULL,
         usuario_id    INTEGER NOT NULL,
         convidado_por INTEGER,
@@ -136,11 +127,9 @@ class BancoApp {
         rsvp          TEXT,
         atualizado_em INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (evento_id, usuario_id)
-      );''',
-    );
+      );''');
 
-    await db.execute(
-      '''CREATE TABLE IF NOT EXISTS cache_conversa(
+    await db.execute('''CREATE TABLE IF NOT EXISTS cache_conversa(
         id                INTEGER PRIMARY KEY,
         tipo              TEXT NOT NULL,
         evento_id         INTEGER,
@@ -148,34 +137,27 @@ class BancoApp {
         outro_usuario_id  INTEGER,
         ultima_mensagem   TEXT,
         atualizado_em     INTEGER NOT NULL DEFAULT 0
-      );''',
-    );
+      );''');
 
-    await db.execute(
-      '''CREATE TABLE IF NOT EXISTS cache_mensagem(
+    await db.execute('''CREATE TABLE IF NOT EXISTS cache_mensagem(
         id          INTEGER PRIMARY KEY,
         conversa_id INTEGER NOT NULL,
         autor_id    INTEGER NOT NULL,
         texto       TEXT NOT NULL,
         criado_em   INTEGER NOT NULL
-      );''',
-    );
+      );''');
 
-    await db.execute(
-      '''CREATE TABLE IF NOT EXISTS cache_ranking_pessoas(
+    await db.execute('''CREATE TABLE IF NOT EXISTS cache_ranking_pessoas(
         usuario_id INTEGER PRIMARY KEY,
         nome       TEXT NOT NULL,
         contagem   INTEGER NOT NULL,
         ordem      INTEGER NOT NULL
-      );''',
-    );
+      );''');
 
-    await db.execute(
-      '''CREATE TABLE IF NOT EXISTS sync_meta(
+    await db.execute('''CREATE TABLE IF NOT EXISTS sync_meta(
         chave TEXT PRIMARY KEY,
         valor TEXT NOT NULL
-      );''',
-    );
+      );''');
 
     await db.execute(
       'CREATE INDEX IF NOT EXISTS ix_cache_evento_inicio ON cache_evento(inicio_em);',

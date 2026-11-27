@@ -8,11 +8,7 @@ class TelaLogin extends StatefulWidget {
   final AuthController authController;
   final String? motivo;
 
-  const TelaLogin({
-    super.key,
-    required this.authController,
-    this.motivo,
-  });
+  const TelaLogin({super.key, required this.authController, this.motivo});
 
   @override
   State<TelaLogin> createState() => _TelaLoginState();
@@ -93,14 +89,18 @@ class _TelaLoginState extends State<TelaLogin> {
   String _mensagemDoErro(ApiException erro) {
     final detalhes = erro.details;
     if (detalhes is List && detalhes.isNotEmpty) {
-      final itens = detalhes.map((item) {
-        if (item is Map) {
-          final campo = item['campo']?.toString();
-          final mensagem = item['mensagem']?.toString() ?? item.toString();
-          return campo == null || campo.isEmpty ? mensagem : '$campo: $mensagem';
-        }
-        return item.toString();
-      }).join('\n');
+      final itens = detalhes
+          .map((item) {
+            if (item is Map) {
+              final campo = item['campo']?.toString();
+              final mensagem = item['mensagem']?.toString() ?? item.toString();
+              return campo == null || campo.isEmpty
+                  ? mensagem
+                  : '$campo: $mensagem';
+            }
+            return item.toString();
+          })
+          .join('\n');
       return '${erro.message}\n$itens';
     }
 
@@ -175,11 +175,7 @@ class _TelaLoginState extends State<TelaLogin> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(
-                    Icons.place,
-                    size: 56,
-                    color: theme.colorScheme.primary,
-                  ),
+                  Icon(Icons.place, size: 56, color: theme.colorScheme.primary),
                   const SizedBox(height: 8),
                   Text(
                     'PlaceZ',
@@ -249,7 +245,8 @@ class _TelaLoginState extends State<TelaLogin> {
                                   TextFormField(
                                     controller: _nomeController,
                                     textInputAction: TextInputAction.next,
-                                    textCapitalization: TextCapitalization.words,
+                                    textCapitalization:
+                                        TextCapitalization.words,
                                     enabled: !_enviando,
                                     decoration: const InputDecoration(
                                       labelText: 'Nome',
@@ -257,7 +254,8 @@ class _TelaLoginState extends State<TelaLogin> {
                                     ),
                                     validator: (valor) {
                                       final nome = (valor ?? '').trim();
-                                      if (nome.length < 2 || nome.length > 120) {
+                                      if (nome.length < 2 ||
+                                          nome.length > 120) {
                                         return 'Informe um nome entre 2 e 120 caracteres.';
                                       }
                                       return null;
@@ -320,7 +318,8 @@ class _TelaLoginState extends State<TelaLogin> {
                                       prefixIcon: Icon(Icons.lock_reset),
                                     ),
                                     validator: (valor) {
-                                      if ((valor ?? '') != _senhaController.text) {
+                                      if ((valor ?? '') !=
+                                          _senhaController.text) {
                                         return 'As senhas não coincidem.';
                                       }
                                       return null;
@@ -350,14 +349,16 @@ class _TelaLoginState extends State<TelaLogin> {
                                     ),
                                   )
                                 : Icon(
-                                    _criandoConta ? Icons.person_add : Icons.login,
+                                    _criandoConta
+                                        ? Icons.person_add
+                                        : Icons.login,
                                   ),
                             label: Text(
                               _enviando
                                   ? 'Aguarde...'
                                   : _criandoConta
-                                      ? 'Criar conta'
-                                      : 'Entrar',
+                                  ? 'Criar conta'
+                                  : 'Entrar',
                             ),
                           ),
                         ],

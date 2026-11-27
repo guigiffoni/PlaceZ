@@ -15,14 +15,8 @@ class AuthRepository {
     );
   }
 
-  Future<AuthSession> login({
-    required String username,
-    required String senha,
-  }) {
-    return _autenticar(
-      '/auth/login',
-      {'username': username, 'senha': senha},
-    );
+  Future<AuthSession> login({required String username, required String senha}) {
+    return _autenticar('/auth/login', {'username': username, 'senha': senha});
   }
 
   Future<AuthSession> registro({
@@ -30,10 +24,11 @@ class AuthRepository {
     required String username,
     required String senha,
   }) {
-    return _autenticar(
-      '/auth/registro',
-      {'nome': nome, 'username': username, 'senha': senha},
-    );
+    return _autenticar('/auth/registro', {
+      'nome': nome,
+      'username': username,
+      'senha': senha,
+    });
   }
 
   Future<AuthSession> _autenticar(
@@ -71,6 +66,47 @@ class AuthRepository {
         );
       }
       return AuthUsuario.fromJson(Map<String, dynamic>.from(resposta));
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> enviarFoto(String imagemBase64, String mime) async {
+    final client = await _criarCliente();
+    try {
+      await client.put(
+        '/me/foto',
+        body: {'imagemBase64': imagemBase64, 'mime': mime},
+      );
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> removerFoto() async {
+    final client = await _criarCliente();
+    try {
+      await client.delete('/me/foto');
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<AuthUsuario> atualizarPerfil(String nome) async {
+    final client = await _criarCliente();
+    try {
+      final resposta = await client.patch('/me', body: {'nome': nome});
+      if (resposta is! Map) {
+        throw const ApiException(
+          code: 'RESPOSTA_INVALIDA',
+          message: 'A API não retornou o perfil atualizado.',
+        );
+      }
+      try {
+        return AuthUsuario.fromJson(Map<String, dynamic>.from(resposta));
+      } on FormatException catch (erro) {
+        throw ApiException(code: 'RESPOSTA_INVALIDA', message: erro.message);
+      }
     } finally {
       client.close();
     }

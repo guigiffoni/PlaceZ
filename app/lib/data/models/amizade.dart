@@ -1,3 +1,5 @@
+import 'localizacao.dart';
+
 enum RelacaoUsuario {
   nenhuma,
   amigos,
@@ -59,8 +61,30 @@ class UsuarioResumo {
 class Amigo {
   final int amizadeId;
   final UsuarioResumo usuario;
+  final LocalizacaoAproximada? localizacaoAproximada;
+  final bool favorito;
 
-  const Amigo({required this.amizadeId, required this.usuario});
+  const Amigo({
+    required this.amizadeId,
+    required this.usuario,
+    this.localizacaoAproximada,
+    this.favorito = false,
+  });
+
+  Amigo copyWith({
+    int? amizadeId,
+    UsuarioResumo? usuario,
+    LocalizacaoAproximada? localizacaoAproximada,
+    bool? favorito,
+  }) {
+    return Amigo(
+      amizadeId: amizadeId ?? this.amizadeId,
+      usuario: usuario ?? this.usuario,
+      localizacaoAproximada:
+          localizacaoAproximada ?? this.localizacaoAproximada,
+      favorito: favorito ?? this.favorito,
+    );
+  }
 
   factory Amigo.fromJson(Map<String, dynamic> json) {
     final amizadeId = _comoInt(json['amizadeId']);
@@ -73,6 +97,10 @@ class Amigo {
     return Amigo(
       amizadeId: amizadeId,
       usuario: UsuarioResumo.fromJson(Map<String, dynamic>.from(usuario)),
+      localizacaoAproximada: LocalizacaoAproximada.fromResposta(
+        json['localizacaoAproximada'],
+      ),
+      favorito: json['favorito'] == true,
     );
   }
 }

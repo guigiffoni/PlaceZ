@@ -54,6 +54,22 @@ class ChatDao {
     return linhas.map(Mensagem.fromMap).toList();
   }
 
+  Future<void> apagarConversa(int conversaId) async {
+    final db = await BancoApp.instancia.database;
+    await db.transaction((txn) async {
+      await txn.delete(
+        'cache_mensagem',
+        where: 'conversa_id = ?',
+        whereArgs: [conversaId],
+      );
+      await txn.delete(
+        'cache_conversa',
+        where: 'id = ?',
+        whereArgs: [conversaId],
+      );
+    });
+  }
+
   Future<void> limpar() async {
     final db = await BancoApp.instancia.database;
     await db.transaction((txn) async {

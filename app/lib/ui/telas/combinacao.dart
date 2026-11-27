@@ -5,6 +5,8 @@ import '../../core/events/events_repository.dart';
 import '../../core/network/api_exception.dart';
 import '../../data/models/enquete.dart';
 import '../../data/models/evento.dart';
+import '../../tema.dart';
+import '../widgets/placez_componentes.dart';
 
 /// Aba do detalhe do evento para combinar o melhor dia.
 class CombinacaoTab extends StatefulWidget {
@@ -205,11 +207,13 @@ class _CombinacaoTabState extends State<CombinacaoTab> {
 
   Widget _aviso(String mensagem) {
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
       children: [
-        const Icon(Icons.event_note_outlined, size: 40),
-        const SizedBox(height: 12),
-        Text(mensagem, textAlign: TextAlign.center),
+        EstadoVazio(
+          icone: Icons.event_note_outlined,
+          titulo: 'Combinação de dias',
+          descricao: mensagem,
+        ),
       ],
     );
   }
@@ -341,10 +345,13 @@ class _CombinacaoTabState extends State<CombinacaoTab> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: ehMelhor
-            ? Border.all(color: theme.colorScheme.primary, width: 1.5)
-            : null,
+        borderRadius: PlacezTokens.bordaMd,
+        border: Border.all(
+          color: ehMelhor
+              ? theme.colorScheme.primary
+              : theme.colorScheme.bordaSutil,
+          width: ehMelhor ? 1.5 : 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -426,20 +433,7 @@ class _CombinacaoTabState extends State<CombinacaoTab> {
   }
 
   Widget _avisoLinha(String mensagem) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        mensagem,
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSecondaryContainer,
-        ),
-      ),
-    );
+    return AvisoPlacez(mensagem);
   }
 
   String _rotuloData(OpcaoDisponibilidade opcao) {

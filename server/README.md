@@ -50,8 +50,14 @@ SELECT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') FROM dual;
 Deve retornar `PLACEZ`. Depois execute `sql/schema.sql`.
 
 Em um banco que já tinha o schema de fases anteriores, aplique apenas os
-scripts pendentes de `sql/migrations/` na ordem dos nomes. A migração da Fase 5
-é `sql/migrations/2026-11-25_fase5.sql`.
+scripts pendentes de `sql/migrations/` na ordem dos nomes. As migrações P1/P2
+incluem `2026-11-26_p1_*.sql`, `2026-11-27_p2_buscas.sql`,
+`2026-11-27_p2_catalogo.sql` e `2026-11-27_p2_evento_imagem.sql`.
+
+Depois execute `sql/seed_catalogo_bh.sql` para carregar as regiões aproximadas
+e o catálogo real curado da região metropolitana de Belo Horizonte. Em
+seguida, `sql/seed_catalogo_detalhe.sql` preenche descrições, preços, itens e
+avaliações curadas.
 
 As tabelas devem ser criadas no schema `PLACEZ`, não em `ADMIN`.
 
@@ -188,6 +194,8 @@ server/
   .env.example
   package.json
   sql/schema.sql
+  sql/migrations/
+  sql/seed_catalogo_bh.sql
   src/
     config.js
     db.js
@@ -201,6 +209,7 @@ server/
     routes/events.js
     routes/friends.js
     routes/health.js
+    routes/locations.js
   docs/api-contract.md
 ```
 
