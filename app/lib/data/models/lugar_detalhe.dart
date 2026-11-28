@@ -58,7 +58,10 @@ class DetalheLugar {
   });
 
   factory DetalheLugar.fromJson(Map<String, dynamic> json) {
-    final lugar = Local.fromJson(json);
+    final base = Local.fromJson(json);
+    final lugar = base.catalogoId == null && base.id != null
+        ? base.copyWith(catalogoId: base.id)
+        : base;
     final itens = json['itens'];
     final avaliacoes = json['avaliacoes'];
     final minha = json['minhaAvaliacao'];

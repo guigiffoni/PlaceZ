@@ -52,7 +52,8 @@ Deve retornar `PLACEZ`. Depois execute `sql/schema.sql`.
 Em um banco que já tinha o schema de fases anteriores, aplique apenas os
 scripts pendentes de `sql/migrations/` na ordem dos nomes. As migrações P1/P2
 incluem `2026-11-26_p1_*.sql`, `2026-11-27_p2_buscas.sql`,
-`2026-11-27_p2_catalogo.sql` e `2026-11-27_p2_evento_imagem.sql`.
+`2026-11-27_p2_catalogo.sql`, `2026-11-27_p2_evento_imagem.sql` e
+`2026-11-27_p3_locais_combinacao.sql`.
 
 Depois execute `sql/seed_catalogo_bh.sql` para carregar as regiões aproximadas
 e o catálogo real curado da região metropolitana de Belo Horizonte. Em

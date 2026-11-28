@@ -43,6 +43,12 @@ class _TelaDetalheLugarState extends State<TelaDetalheLugar> {
 
   Local get _lugar => _detalhe?.lugar ?? widget.lugarInicial;
 
+  Local get _lugarComCatalogo {
+    final lugar = _lugar;
+    if (lugar.catalogoId != null || lugar.id == null) return lugar;
+    return lugar.copyWith(catalogoId: lugar.id);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -219,7 +225,7 @@ class _TelaDetalheLugarState extends State<TelaDetalheLugar> {
       );
       if (escolhido == null || !mounted) return;
 
-      await _eventosRepositorio.atualizarLocal(escolhido.id, _lugar);
+      await _eventosRepositorio.atualizarLocal(escolhido.id, _lugarComCatalogo);
       if (!mounted) return;
       _avisar('Local atualizado no evento "${escolhido.titulo}".');
     } on ApiException catch (erro) {
@@ -492,7 +498,7 @@ class _TelaDetalheLugarState extends State<TelaDetalheLugar> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                 child: FilledButton.icon(
-                  onPressed: () => Navigator.of(context).pop(_lugar),
+                  onPressed: () => Navigator.of(context).pop(_lugarComCatalogo),
                   icon: const Icon(Icons.check),
                   label: const Text('Usar este local'),
                 ),
@@ -827,8 +833,7 @@ class _SeletorEvento extends StatelessWidget {
             ),
             const SizedBox(height: PlacezTokens.espSm),
             Text(
-              'Apenas eventos em que você é administrador/criador aparecem '
-              'aqui.',
+              'Mostrando os 5 eventos seus modificados mais recentemente.',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

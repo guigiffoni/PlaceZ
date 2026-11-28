@@ -349,7 +349,8 @@ Formato do evento retornado pela API:
     "categoria": "Pizzaria",
     "distanciaMetros": 1900,
     "latitude": -19.9318,
-    "longitude": -43.9428
+    "longitude": -43.9428,
+    "catalogoId": 12
   },
   "criador": { "id": 2, "nome": "Ana Souza", "username": "ana" },
   "privado": true,
@@ -425,7 +426,8 @@ confirmados; esta rota alimenta a seção “Combinações pendentes”.
     "categoria": "Pizzaria",
     "distanciaMetros": 1900,
     "latitude": -19.9318,
-    "longitude": -43.9428
+    "longitude": -43.9428,
+    "catalogoId": 12
   },
   "privado": true,
   "permitirMembrosConvidar": false,
@@ -463,7 +465,8 @@ Regras:
 ### `GET /eventos/gerenciaveis`
 
 Lista os eventos em que o usuário é criador e pode alterar o local. Inclui
-rascunhos e confirmados; exclui cancelados.
+rascunhos e confirmados; exclui cancelados. Retorna no máximo os 5 eventos
+modificados mais recentemente (`atualizado_em DESC`).
 
 ```json
 {
@@ -605,7 +608,8 @@ Regras:
 
 ### `POST /eventos/:id/enquete`
 
-Somente o criador, com o evento em `RASCUNHO` e sem enquete anterior.
+Somente o criador, com o evento em `RASCUNHO`. Cria a enquete ou, com
+`regerar: true`, substitui as opções e os votos existentes.
 
 ```json
 {
@@ -614,7 +618,8 @@ Somente o criador, com o evento em `RASCUNHO` e sem enquete anterior.
   "diasSemana": [6, 7],
   "horaInicio": "19:00",
   "horaFim": "22:00",
-  "fusoOffsetMinutos": -180
+  "fusoOffsetMinutos": -180,
+  "regerar": false
 }
 ```
 
@@ -627,8 +632,12 @@ Regras:
   escolhidos.
 - `fusoOffsetMinutos` é o deslocamento local do criador em relação a UTC
   (ex.: `-180` para UTC-3). Ele é usado ao aplicar a melhor data no evento.
+- `regerar`: quando `true`, apaga a enquete atual (opções e votos) antes de
+  criar a nova configuração. Sem ele, uma enquete existente retorna
+  `409 ENQUETE_EXISTENTE`.
 
-Resposta `201` com `{ "enquete": { ... }, "melhorDia": { ... } }`.
+Resposta `201` na criação ou `200` na regeração, com
+`{ "enquete": { ... }, "melhorDia": { ... } }`.
 
 Cada opção tem o formato:
 

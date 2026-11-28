@@ -97,7 +97,7 @@ class TelaSobre extends StatelessWidget {
                   ),
                   const SizedBox(height: PlacezTokens.espSm),
                   Text(
-                    'Fulano 1\nFulano 2\nFulano 3',
+                    'Guilherme Amaral Giffoni\nRodrigo Fernandes\nPedro Henrique',
                     style: theme.textTheme.bodyMedium?.copyWith(height: 1.7),
                   ),
                 ],

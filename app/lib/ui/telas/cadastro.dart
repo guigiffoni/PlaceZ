@@ -12,9 +12,11 @@ import '../../core/friends/friends_repository.dart';
 import '../../core/locations/fotos_lugar.dart';
 import '../../core/network/api_exception.dart';
 import '../../data/models/amizade.dart';
+import '../../data/models/enquete.dart';
 import '../../data/models/evento.dart';
 import '../../data/models/local.dart';
 import '../../tema.dart';
+import '../widgets/formulario_combinacao.dart';
 import '../widgets/imagem_evento.dart';
 import '../widgets/seletor_mapa.dart';
 import 'selecao_local.dart';
@@ -27,6 +29,7 @@ class TelaCadastroEvento extends StatefulWidget {
   final bool fecharAoSalvar;
   final bool mostrarAppBar;
   final VoidCallback? onBuscarNoCatalogo;
+  final ValueChanged<Evento>? onEventoCriado;
 
   const TelaCadastroEvento({
     super.key,
@@ -36,6 +39,7 @@ class TelaCadastroEvento extends StatefulWidget {
     this.fecharAoSalvar = false,
     this.mostrarAppBar = true,
     this.onBuscarNoCatalogo,
+    this.onEventoCriado,
   });
 
   @override
@@ -66,6 +70,10 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
   bool _imagemRemover = false;
   bool _imagemDoLugar = false;
   bool _carregandoImagem = false;
+
+  EnqueteEntrada? _combinacaoPendente;
+  bool _combinacaoRegenerar = false;
+  bool _carregandoCombinacao = false;
 
   FriendsRepository? _friendsRepository;
 
@@ -113,8 +121,12 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
 
   void _definirLocal(Local? local) {
     if (!mounted) return;
+    final comCatalogo =
+        local != null && local.catalogoId == null && local.id != null
+        ? local.copyWith(catalogoId: local.id)
+        : local;
     setState(() {
-      _localSelecionado = local;
+      _localSelecionado = comCatalogo;
       if (_imagemDoLugar) {
         _imagemBytes = null;
         _imagemMime = null;
@@ -544,14 +556,32 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
       _imagemBytes = null;
       _imagemMime = null;
       _imagemDoLugar = false;
-      _imagemRemover = _modoEdicao;
+      _imagemRemover = true;
       _imagemAtual = false;
     });
   }
 
-  Future<String?> _enviarImagemDoEvento(int eventoId) {
-    final bytes = _imagemBytes;
-    final mime = _imagemMime;
+  Future<String?> _enviarImagemDoEvento(int eventoId) async {
+    var bytes = _imagemBytes;
+    var mime = _imagemMime;
+
+    if (bytes == null && !_imagemRemover && !_imagemAtual) {
+      final local = _localSelecionado;
+      if (local != null && local.categoria != null) {
+        try {
+          final asset = FotosLugar.principal(local.categoria, local.nome);
+          final dados = await rootBundle.load(asset);
+          final sugeridos = dados.buffer.asUint8List();
+          if (sugeridos.length <= 600 * 1024) {
+            bytes = sugeridos;
+            mime = 'image/jpeg';
+          }
+        } catch (_) {
+          // Sem a foto sugerida, o evento segue sem imagem.
+        }
+      }
+    }
+
     if (bytes != null && mime != null) {
       return widget.eventsController.atualizarImagemEvento(
         eventoId,
@@ -562,7 +592,91 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
     if (_imagemRemover && _modoEdicao) {
       return widget.eventsController.removerImagemEvento(eventoId);
     }
-    return Future.value(null);
+    return null;
+  }
+
+  Future<void> _abrirCombinacao() async {
+    if (_carregandoCombinacao) return;
+
+    EnqueteDisponibilidade? existente;
+    var regenerar = false;
+    final evento = widget.eventoParaEditar;
+
+    if (evento?.id != null) {
+      setState(() => _carregandoCombinacao = true);
+      try {
+        final consulta = await widget.eventsController.consultarEnquete(
+          evento!.id!,
+        );
+        existente = consulta.enquete;
+        regenerar = true;
+      } on ApiException catch (erro) {
+        if (erro.statusCode != 404) {
+          _avisar(erro.message);
+          if (mounted) setState(() => _carregandoCombinacao = false);
+          return;
+        }
+      } catch (erro) {
+        _avisar('Não foi possível carregar a combinação: $erro');
+        if (mounted) setState(() => _carregandoCombinacao = false);
+        return;
+      } finally {
+        if (mounted) setState(() => _carregandoCombinacao = false);
+      }
+    }
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (modalContext) => SizedBox(
+        height: MediaQuery.sizeOf(modalContext).height * 0.9,
+        child: FormularioCombinacao(
+          inicial: existente,
+          regenerar: regenerar,
+          onCriar: (entrada) async {
+            if (!mounted) return null;
+            setState(() {
+              _combinacaoPendente = entrada;
+              _combinacaoRegenerar = regenerar;
+            });
+            if (modalContext.mounted) Navigator.of(modalContext).pop();
+            return null;
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _salvarCombinacao(int eventoId) async {
+    final entrada = _combinacaoPendente;
+    if (entrada == null) return null;
+    if (!_usarCombinacao && !_emRascunho) return null;
+
+    try {
+      await widget.eventsController.criarEnquete(
+        eventoId,
+        entrada,
+        regenerar: _combinacaoRegenerar,
+      );
+      return null;
+    } on ApiException catch (erro) {
+      return erro.message;
+    } catch (erro) {
+      return 'Não foi possível salvar a combinação: $erro';
+    }
+  }
+
+  String _resumoCombinacao(EnqueteEntrada entrada) {
+    String data(String iso) {
+      final partes = iso.split('-');
+      if (partes.length != 3) return iso;
+      return '${partes[2]}/${partes[1]}';
+    }
+
+    return '${data(entrada.dataInicio)} a ${data(entrada.dataFim)} · '
+        '${entrada.horaInicio}–${entrada.horaFim}';
   }
 
   Future<void> _salvar() async {
@@ -592,6 +706,7 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
 
       String? erro;
       String? erroImagem;
+      String? erroCombinacao;
       if (_modoEdicao) {
         final evento = widget.eventoParaEditar!;
         erro = await widget.eventsController.editar(evento.id!, entrada);
@@ -608,6 +723,7 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
             if (erroConfig != null) _avisar(erroConfig);
           }
           erroImagem = await _enviarImagemDoEvento(evento.id!);
+          erroCombinacao = await _salvarCombinacao(evento.id!);
         }
       } else {
         erro = await widget.eventsController.criar(
@@ -617,6 +733,7 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
         final criado = widget.eventsController.ultimoEventoCriado;
         if (erro == null && criado?.id != null) {
           erroImagem = await _enviarImagemDoEvento(criado!.id!);
+          erroCombinacao = await _salvarCombinacao(criado.id!);
         }
       }
 
@@ -629,18 +746,33 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
       if (erroImagem != null) {
         _avisar('Evento salvo, mas a imagem não pôde ser enviada: $erroImagem');
       }
+      if (erroCombinacao != null) {
+        _avisar(
+          'Evento salvo, mas a combinação não pôde ser criada: '
+          '$erroCombinacao',
+        );
+      }
 
-      if (_modoEdicao || widget.fecharAoSalvar) {
+      final criado = widget.eventsController.ultimoEventoCriado;
+
+      if (_modoEdicao) {
         Navigator.of(context).pop(true);
         return;
       }
+      if (widget.fecharAoSalvar) {
+        Navigator.of(context).pop<Evento?>(criado);
+        return;
+      }
 
+      final tinhaCombinacao = _combinacaoPendente != null;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             emRascunho
-                ? 'Rascunho criado. Abra "Combinações pendentes" no '
-                      'calendário para definir os dias.'
+                ? tinhaCombinacao
+                      ? 'Rascunho criado com a combinação de dias.'
+                      : 'Rascunho criado. Defina os dias da combinação no '
+                            'evento.'
                 : 'Evento criado com sucesso!',
           ),
         ),
@@ -660,7 +792,10 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
         _imagemAtual = false;
         _imagemRemover = false;
         _imagemDoLugar = false;
+        _combinacaoPendente = null;
+        _combinacaoRegenerar = false;
       });
+      if (criado != null) widget.onEventoCriado?.call(criado);
     } finally {
       if (mounted) setState(() => _salvando = false);
     }
@@ -748,13 +883,27 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
                     const Divider(),
                     ListTile(
                       leading: const Icon(Icons.auto_awesome_outlined),
-                      title: const Text('Data por combinação'),
+                      title: const Text('Dias da combinação'),
                       subtitle: Text(
-                        _modoEdicao
-                            ? 'Ajuste o período e os dias na aba Combinação.'
-                            : 'Depois de salvar, defina o período e os dias na '
-                                  'aba Combinação.',
+                        _combinacaoPendente == null
+                            ? 'Defina o período, os dias e o horário'
+                            : _resumoCombinacao(_combinacaoPendente!),
                       ),
+                      trailing: _carregandoCombinacao
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : TextButton(
+                              onPressed: _abrirCombinacao,
+                              child: Text(
+                                _combinacaoPendente == null
+                                    ? 'Definir'
+                                    : 'Editar',
+                              ),
+                            ),
+                      onTap: _carregandoCombinacao ? null : _abrirCombinacao,
                     ),
                   ] else ...[
                     const Divider(),
@@ -820,21 +969,27 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
               const SizedBox(height: PlacezTokens.espXl),
               _secaoConvidados(theme),
             ],
-            const SizedBox(height: PlacezTokens.espXl),
-            FilledButton(
-              onPressed: _salvando ? null : _salvar,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: _salvando
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(_modoEdicao ? 'Salvar alterações' : 'Salvar Evento'),
-            ),
+            const SizedBox(height: PlacezTokens.espSm),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: FilledButton(
+            onPressed: _salvando ? null : _salvar,
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: _salvando
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(_modoEdicao ? 'Salvar alterações' : 'Salvar Evento'),
+          ),
         ),
       ),
     );
@@ -866,6 +1021,13 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
     final evento = widget.eventoParaEditar;
     final temImagemAtual =
         _imagemAtual && _modoEdicao && evento?.id != null && !_imagemRemover;
+    final mostrarSugestao =
+        sugestao != null &&
+        _imagemBytes == null &&
+        !temImagemAtual &&
+        !_imagemRemover;
+    final temPreview =
+        _imagemBytes != null || temImagemAtual || mostrarSugestao;
 
     Widget preview() {
       if (_imagemBytes != null) {
@@ -877,6 +1039,19 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
           eventoId: evento!.id!,
           versao: evento.imagemAtualizadaEm?.millisecondsSinceEpoch ?? 0,
           fit: BoxFit.cover,
+        );
+      }
+      if (mostrarSugestao) {
+        return Image.asset(
+          sugestao,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stack) => Container(
+            color: theme.colorScheme.surfaceContainerHigh,
+            child: Icon(
+              Icons.image_not_supported_outlined,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         );
       }
       return Container(
@@ -913,62 +1088,94 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
               children: [
                 ClipRRect(
                   borderRadius: PlacezTokens.bordaMd,
-                  child: SizedBox(height: 150, child: preview()),
+                  child: SizedBox(
+                    height: 180,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        preview(),
+                        if (temPreview)
+                          Positioned(
+                            top: 6,
+                            right: 6,
+                            child: Material(
+                              color: Colors.black.withValues(alpha: 0.55),
+                              shape: const CircleBorder(),
+                              child: IconButton(
+                                tooltip: 'Remover imagem',
+                                onPressed: _carregandoImagem
+                                    ? null
+                                    : _removerImagem,
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (mostrarSugestao)
+                          Positioned(
+                            left: 8,
+                            bottom: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                'Sugestão do local',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-                if (sugestao != null &&
-                    _imagemBytes == null &&
-                    !temImagemAtual) ...[
-                  const SizedBox(height: PlacezTokens.espMd),
-                  Text(
-                    'Sugestão do local',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: PlacezTokens.bordaMd,
-                    child: Image.asset(
-                      sugestao,
-                      height: 110,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stack) =>
-                          const SizedBox.shrink(),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  FilledButton.tonalIcon(
-                    onPressed: _carregandoImagem ? null : _usarFotoDoLugar,
+                const SizedBox(height: PlacezTokens.espMd),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonalIcon(
+                    onPressed: sugestao != null && !_carregandoImagem
+                        ? _usarFotoDoLugar
+                        : null,
                     icon: const Icon(Icons.auto_awesome, size: 18),
                     label: const Text('Usar foto do local'),
                   ),
-                ],
+                ),
                 const SizedBox(height: PlacezTokens.espSm),
-                Wrap(
-                  spacing: PlacezTokens.espSm,
-                  runSpacing: PlacezTokens.espXs,
+                Row(
                   children: [
-                    OutlinedButton.icon(
-                      onPressed: _carregandoImagem
-                          ? null
-                          : () => _escolherImagem(ImageSource.gallery),
-                      icon: const Icon(Icons.photo_library_outlined, size: 18),
-                      label: const Text('Galeria'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _carregandoImagem
-                          ? null
-                          : () => _escolherImagem(ImageSource.camera),
-                      icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                      label: const Text('Câmera'),
-                    ),
-                    if (_imagemBytes != null || temImagemAtual)
-                      TextButton.icon(
-                        onPressed: _carregandoImagem ? null : _removerImagem,
-                        icon: const Icon(Icons.delete_outline, size: 18),
-                        label: const Text('Remover'),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _carregandoImagem
+                            ? null
+                            : () => _escolherImagem(ImageSource.gallery),
+                        icon: const Icon(
+                          Icons.photo_library_outlined,
+                          size: 18,
+                        ),
+                        label: const Text('Galeria'),
                       ),
+                    ),
+                    const SizedBox(width: PlacezTokens.espSm),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _carregandoImagem
+                            ? null
+                            : () => _escolherImagem(ImageSource.camera),
+                        icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                        label: const Text('Câmera'),
+                      ),
+                    ),
                   ],
                 ),
                 if (_carregandoImagem) ...[

@@ -338,13 +338,14 @@ class EventsRepository {
 
   Future<ConsultaEnquete> criarEnquete(
     int eventoId,
-    EnqueteEntrada entrada,
-  ) async {
+    EnqueteEntrada entrada, {
+    bool regenerar = false,
+  }) async {
     final client = await _criarCliente();
     try {
       final resposta = await client.post(
         '/eventos/$eventoId/enquete',
-        body: entrada.toJson(),
+        body: {...entrada.toJson(), if (regenerar) 'regerar': true},
       );
       return _consultaDaResposta(resposta);
     } finally {

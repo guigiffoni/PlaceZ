@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/chat/chat_repository.dart';
 import '../../core/events/events_controller.dart';
@@ -8,15 +8,18 @@ import '../../core/friends/friends_repository.dart';
 import '../../core/network/api_exception.dart';
 import '../../data/models/amizade.dart';
 import '../../data/models/conversa.dart';
+import '../../data/models/enquete.dart';
 import '../../data/models/evento.dart';
+import '../../data/models/local.dart';
 import '../../tema.dart';
 import '../widgets/avatar_usuario.dart';
+import '../widgets/formulario_combinacao.dart';
 import '../widgets/imagem_evento.dart';
 import '../widgets/placez_componentes.dart';
-import '../widgets/seletor_mapa.dart';
 import 'cadastro.dart';
 import 'combinacao.dart';
 import 'conversa.dart';
+import 'lugar_detalhe.dart';
 
 class TelaDetalheEvento extends StatefulWidget {
   final EventsController eventsController;
@@ -148,6 +151,59 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
     if (alterou == true && mounted) {
       await _controller.detalhar(widget.eventoId, silencioso: true);
     }
+  }
+
+  List<Widget> _acoesEvento(Evento evento) {
+    final habilitado = !_controller.acaoEmAndamento && !evento.cancelado;
+    final compacto = MediaQuery.sizeOf(context).width < 360;
+    if (compacto) {
+      return [
+        PopupMenuButton<String>(
+          enabled: habilitado,
+          tooltip: 'Opções do evento',
+          onSelected: (valor) {
+            if (valor == 'editar') _abrirEdicao(evento);
+            if (valor == 'cancelar') _cancelarEvento(evento);
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              value: 'editar',
+              child: ListTile(
+                leading: Icon(Icons.edit_outlined),
+                title: Text('Editar evento'),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'cancelar',
+              child: ListTile(
+                leading: Icon(Icons.event_busy_outlined),
+                title: Text('Cancelar evento'),
+              ),
+            ),
+          ],
+        ),
+      ];
+    }
+
+    final theme = Theme.of(context);
+    return [
+      IconButton(
+        tooltip: 'Editar evento',
+        onPressed: habilitado ? () => _abrirEdicao(evento) : null,
+        icon: const Icon(Icons.edit_outlined),
+      ),
+      IconButton(
+        tooltip: 'Cancelar evento',
+        onPressed: habilitado ? () => _cancelarEvento(evento) : null,
+        icon: const Icon(Icons.event_busy_outlined),
+        style: IconButton.styleFrom(
+          foregroundColor: theme.colorScheme.error,
+          disabledForegroundColor: theme.colorScheme.onSurface.withValues(
+            alpha: 0.38,
+          ),
+        ),
+      ),
+    ];
   }
 
   Future<void> _cancelarEvento(Evento evento) async {
@@ -386,33 +442,7 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(evento.titulo),
-          actions: [
-            if (evento.souCriador)
-              PopupMenuButton<String>(
-                enabled: !_controller.acaoEmAndamento && !evento.cancelado,
-                tooltip: 'Opções do evento',
-                onSelected: (valor) {
-                  if (valor == 'editar') _abrirEdicao(evento);
-                  if (valor == 'cancelar') _cancelarEvento(evento);
-                },
-                itemBuilder: (context) => const [
-                  PopupMenuItem(
-                    value: 'editar',
-                    child: ListTile(
-                      leading: Icon(Icons.edit_outlined),
-                      title: Text('Editar evento'),
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'cancelar',
-                    child: ListTile(
-                      leading: Icon(Icons.event_busy_outlined),
-                      title: Text('Cancelar evento'),
-                    ),
-                  ),
-                ],
-              ),
-          ],
+          actions: [if (evento.souCriador) ..._acoesEvento(evento)],
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Detalhes'),
@@ -470,16 +500,37 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
                   _card(
                     theme,
                     children: [
-                      ListTile(
-                        leading: const Icon(Icons.calendar_today),
-                        title: const Text('Início'),
-                        subtitle: Text(_formatarDataHora(evento.inicioEm)),
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.event_available),
-                        title: const Text('Fim'),
-                        subtitle: Text(_formatarDataHora(evento.fimEm)),
-                      ),
+                      if (evento.status == 'RASCUNHO')
+                        ListTile(
+                          leading: const Icon(Icons.auto_awesome_outlined),
+                          title: const Text('Combinação de dias'),
+                          subtitle: Text(
+                            evento.souCriador
+                                ? 'Defina ou regenere os dias possíveis'
+                                : 'Aguardando o criador definir os dias',
+                          ),
+                          trailing: evento.souCriador
+                              ? TextButton(
+                                  onPressed: _abrirCombinacaoEvento,
+                                  child: const Text('Definir'),
+                                )
+                              : null,
+                          onTap: evento.souCriador
+                              ? _abrirCombinacaoEvento
+                              : null,
+                        )
+                      else ...[
+                        ListTile(
+                          leading: const Icon(Icons.calendar_today),
+                          title: const Text('Início'),
+                          subtitle: Text(_formatarDataHora(evento.inicioEm)),
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.event_available),
+                          title: const Text('Fim'),
+                          subtitle: Text(_formatarDataHora(evento.fimEm)),
+                        ),
+                      ],
                       if (evento.local != null)
                         ListTile(
                           leading: const Icon(Icons.location_on_outlined),
@@ -491,15 +542,8 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
                               formatarDistancia(evento.local!.distanciaMetros),
                             ].whereType<String>().join(' · '),
                           ),
-                          trailing:
-                              evento.local!.latitude != null &&
-                                  evento.local!.longitude != null
-                              ? IconButton(
-                                  tooltip: 'Ver no mapa',
-                                  onPressed: () => _abrirMapa(evento),
-                                  icon: const Icon(Icons.map_outlined),
-                                )
-                              : null,
+                          trailing: const Icon(Icons.open_in_new),
+                          onTap: () => _abrirOpcoesLocal(evento),
                         ),
                     ],
                   ),
@@ -942,14 +986,146 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
     return '$dia/$mes/${local.year} às $hora:$minuto';
   }
 
-  void _abrirMapa(Evento evento) {
+  Future<void> _abrirOpcoesLocal(Evento evento) async {
     final local = evento.local;
-    if (local?.latitude == null || local?.longitude == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => SeletorMapa(
-          posicaoInicial: LatLng(local!.latitude!, local.longitude!),
-          apenasVisualizacao: true,
+    if (local == null) return;
+    final podeInfo = local.catalogoId != null;
+
+    final opcao = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              enabled: podeInfo,
+              leading: const Icon(Icons.place_outlined),
+              title: const Text('Abrir informações do local no app'),
+              subtitle: Text(
+                podeInfo
+                    ? 'Ver fotos, avaliações e detalhes'
+                    : 'Local não vinculado ao catálogo',
+              ),
+              onTap: podeInfo ? () => Navigator.of(context).pop('app') : null,
+            ),
+            ListTile(
+              leading: const Icon(Icons.map_outlined),
+              title: const Text('Abrir no aplicativo de mapa padrão'),
+              onTap: () => Navigator.of(context).pop('mapa'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || opcao == null) return;
+    if (opcao == 'app') {
+      final catalogoId = local.catalogoId;
+      if (catalogoId == null) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => TelaDetalheLugar(
+            authController: _controller.auth,
+            lugarInicial: Local(
+              id: catalogoId,
+              catalogoId: catalogoId,
+              nome: local.nome,
+              endereco: local.endereco,
+              categoria: local.categoria,
+              latitude: local.latitude,
+              longitude: local.longitude,
+              distanciaMetros: local.distanciaMetros,
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    await _abrirMapaPadrao(local);
+  }
+
+  Future<void> _abrirMapaPadrao(Local local) async {
+    final latitude = local.latitude;
+    final longitude = local.longitude;
+    final rotulo = Uri.encodeComponent(local.nome ?? 'Local do evento');
+    final busca = Uri.encodeComponent(
+      local.endereco ?? local.nome ?? 'Local do evento',
+    );
+
+    final geo = latitude != null && longitude != null
+        ? Uri.parse('geo:$latitude,$longitude?q=$latitude,$longitude($rotulo)')
+        : Uri.parse('geo:0,0?q=$busca');
+    final fallback = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query='
+      '${latitude != null && longitude != null ? '$latitude,$longitude' : busca}',
+    );
+
+    try {
+      final abriu = await launchUrl(geo, mode: LaunchMode.externalApplication);
+      if (!abriu) {
+        await launchUrl(fallback, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {
+      try {
+        await launchUrl(fallback, mode: LaunchMode.externalApplication);
+      } catch (erro) {
+        if (mounted) _avisar('Não foi possível abrir o mapa: $erro');
+      }
+    }
+  }
+
+  Future<void> _abrirCombinacaoEvento() async {
+    EnqueteDisponibilidade? existente;
+    var regenerar = false;
+
+    try {
+      final consulta = await _controller.consultarEnquete(widget.eventoId);
+      existente = consulta.enquete;
+      regenerar = true;
+    } on ApiException catch (erro) {
+      if (erro.statusCode != 404) {
+        _avisar(erro.message);
+        return;
+      }
+    } catch (erro) {
+      _avisar('Não foi possível carregar a combinação: $erro');
+      return;
+    }
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (modalContext) => SizedBox(
+        height: MediaQuery.sizeOf(modalContext).height * 0.9,
+        child: FormularioCombinacao(
+          inicial: existente,
+          regenerar: regenerar,
+          onCriar: (entrada) async {
+            try {
+              await _controller.criarEnquete(
+                widget.eventoId,
+                entrada,
+                regenerar: regenerar,
+              );
+              if (modalContext.mounted) Navigator.of(modalContext).pop();
+              if (mounted) {
+                await _controller.detalhar(widget.eventoId, silencioso: true);
+                _avisar(
+                  regenerar
+                      ? 'Opções de data regeradas.'
+                      : 'Combinação de dias criada.',
+                );
+              }
+              return null;
+            } on ApiException catch (erro) {
+              return erro.message;
+            } catch (erro) {
+              return 'Não foi possível salvar a combinação: $erro';
+            }
+          },
         ),
       ),
     );

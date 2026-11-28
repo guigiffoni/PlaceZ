@@ -298,8 +298,12 @@ class EventsController extends ChangeNotifier {
     return _repositorio.consultarEnquete(eventoId);
   }
 
-  Future<ConsultaEnquete> criarEnquete(int eventoId, EnqueteEntrada entrada) {
-    return _repositorio.criarEnquete(eventoId, entrada);
+  Future<ConsultaEnquete> criarEnquete(
+    int eventoId,
+    EnqueteEntrada entrada, {
+    bool regenerar = false,
+  }) {
+    return _repositorio.criarEnquete(eventoId, entrada, regenerar: regenerar);
   }
 
   Future<ConsultaEnquete> votarEnquete(int eventoId, List<VotoEnquete> votos) {

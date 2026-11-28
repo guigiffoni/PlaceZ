@@ -6,6 +6,7 @@ import '../../core/network/api_exception.dart';
 import '../../data/models/enquete.dart';
 import '../../data/models/evento.dart';
 import '../../tema.dart';
+import '../widgets/formulario_combinacao.dart';
 import '../widgets/placez_componentes.dart';
 
 /// Aba do detalhe do evento para combinar o melhor dia.
@@ -82,6 +83,42 @@ class _CombinacaoTabState extends State<CombinacaoTab> {
     } catch (erro) {
       return 'Não foi possível criar a combinação: $erro';
     }
+  }
+
+  Future<void> _abrirRegerar() async {
+    final consulta = _consulta;
+    if (consulta == null) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (modalContext) => SizedBox(
+        height: MediaQuery.sizeOf(modalContext).height * 0.9,
+        child: FormularioCombinacao(
+          inicial: consulta.enquete,
+          regenerar: true,
+          onCriar: (entrada) async {
+            try {
+              final nova = await _controller.criarEnquete(
+                widget.eventoId,
+                entrada,
+                regenerar: true,
+              );
+              if (!mounted) return null;
+              setState(() => _consulta = nova);
+              if (modalContext.mounted) Navigator.of(modalContext).pop();
+              _avisar('Opções de data regeradas.');
+              return null;
+            } on ApiException catch (erro) {
+              return erro.message;
+            } catch (erro) {
+              return 'Não foi possível regerar as opções: $erro';
+            }
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _votar(
@@ -197,7 +234,7 @@ class _CombinacaoTabState extends State<CombinacaoTab> {
               'O criador ainda está configurando a combinação de dias.',
             );
           }
-          return _FormularioCombinacao(onCriar: _criar);
+          return FormularioCombinacao(onCriar: _criar);
         }
 
         return _conteudo(evento, consulta);
@@ -229,11 +266,24 @@ class _CombinacaoTabState extends State<CombinacaoTab> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
-          Text(
-            'Período: ${_dataCurta(enquete.dataInicio)} a '
-            '${_dataCurta(enquete.dataFim)} · '
-            '${enquete.horaInicio}–${enquete.horaFim}',
-            style: theme.textTheme.bodyMedium,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  'Período: ${_dataCurta(enquete.dataInicio)} a '
+                  '${_dataCurta(enquete.dataFim)} · '
+                  '${enquete.horaInicio}–${enquete.horaFim}',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+              if (evento.status == 'RASCUNHO' && evento.souCriador)
+                TextButton.icon(
+                  onPressed: _abrirRegerar,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Regerar'),
+                ),
+            ],
           ),
           const SizedBox(height: 12),
           if (melhor != null) _cardMelhorDia(melhor, theme),
@@ -458,224 +508,5 @@ class _CombinacaoTabState extends State<CombinacaoTab> {
     final hora = local.hour.toString().padLeft(2, '0');
     final minuto = local.minute.toString().padLeft(2, '0');
     return '$dia/$mes/${local.year} às $hora:$minuto';
-  }
-}
-
-class _FormularioCombinacao extends StatefulWidget {
-  final Future<String?> Function(EnqueteEntrada) onCriar;
-
-  const _FormularioCombinacao({required this.onCriar});
-
-  @override
-  State<_FormularioCombinacao> createState() => _FormularioCombinacaoState();
-}
-
-class _FormularioCombinacaoState extends State<_FormularioCombinacao> {
-  static const _nomesDias = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-
-  DateTime _dataInicio = DateTime.now();
-  DateTime _dataFim = DateTime.now().add(const Duration(days: 14));
-  final Set<int> _diasSemana = {6, 7};
-  TimeOfDay _horaInicio = const TimeOfDay(hour: 19, minute: 0);
-  TimeOfDay _horaFim = const TimeOfDay(hour: 22, minute: 0);
-  bool _enviando = false;
-  String? _erro;
-
-  Future<void> _escolherData(bool inicio) async {
-    final atual = inicio ? _dataInicio : _dataFim;
-    final data = await showDatePicker(
-      context: context,
-      initialDate: atual,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
-    );
-    if (data == null || !mounted) return;
-    setState(() {
-      final escolhida = DateTime(data.year, data.month, data.day);
-      if (inicio) {
-        _dataInicio = escolhida;
-        if (_dataFim.isBefore(_dataInicio)) {
-          _dataFim = _dataInicio.add(const Duration(days: 7));
-        }
-      } else {
-        _dataFim = escolhida;
-      }
-    });
-  }
-
-  Future<void> _escolherHora(bool inicio) async {
-    final hora = await showTimePicker(
-      context: context,
-      initialTime: inicio ? _horaInicio : _horaFim,
-    );
-    if (hora == null || !mounted) return;
-    setState(() {
-      if (inicio) {
-        _horaInicio = hora;
-      } else {
-        _horaFim = hora;
-      }
-    });
-  }
-
-  Future<void> _salvar() async {
-    if (_diasSemana.isEmpty) {
-      setState(() => _erro = 'Selecione ao menos um dia da semana.');
-      return;
-    }
-    if (_dataFim.isBefore(_dataInicio)) {
-      setState(() => _erro = 'A data final deve ser após a inicial.');
-      return;
-    }
-    final totalDias = _dataFim.difference(_dataInicio).inDays + 1;
-    if (totalDias > 60) {
-      setState(() => _erro = 'Use um intervalo de até 60 dias.');
-      return;
-    }
-    if (_minutos(_horaFim) <= _minutos(_horaInicio)) {
-      setState(() => _erro = 'O horário final deve ser após o inicial.');
-      return;
-    }
-
-    setState(() {
-      _enviando = true;
-      _erro = null;
-    });
-
-    final erro = await widget.onCriar(
-      EnqueteEntrada(
-        dataInicio: _isoDia(_dataInicio),
-        dataFim: _isoDia(_dataFim),
-        diasSemana: _diasSemana.toList()..sort(),
-        horaInicio: _hora(_horaInicio),
-        horaFim: _hora(_horaFim),
-        fusoOffsetMinutos: DateTime.now().timeZoneOffset.inMinutes,
-      ),
-    );
-
-    if (!mounted) return;
-    setState(() {
-      _enviando = false;
-      _erro = erro;
-    });
-  }
-
-  int _minutos(TimeOfDay hora) => hora.hour * 60 + hora.minute;
-
-  String _hora(TimeOfDay hora) {
-    final h = hora.hour.toString().padLeft(2, '0');
-    final m = hora.minute.toString().padLeft(2, '0');
-    return '$h:$m';
-  }
-
-  String _isoDia(DateTime data) {
-    final mes = data.month.toString().padLeft(2, '0');
-    final dia = data.day.toString().padLeft(2, '0');
-    return '${data.year}-$mes-$dia';
-  }
-
-  String _dataCurta(DateTime data) {
-    final dia = data.day.toString().padLeft(2, '0');
-    final mes = data.month.toString().padLeft(2, '0');
-    return '$dia/$mes/${data.year}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-      children: [
-        Text(
-          'Escolha o período, os dias da semana e o horário. O app gera uma '
-          'opção para cada data possível e os convidados marcam '
-          'disponibilidade.',
-          style: theme.textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 12),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.date_range),
-          title: const Text('Data inicial'),
-          subtitle: Text(_dataCurta(_dataInicio)),
-          onTap: () => _escolherData(true),
-        ),
-        const Divider(),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.date_range),
-          title: const Text('Data final'),
-          subtitle: Text(_dataCurta(_dataFim)),
-          onTap: () => _escolherData(false),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Dias da semana',
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 6,
-          runSpacing: 4,
-          children: [
-            for (var dia = 1; dia <= 7; dia++)
-              FilterChip(
-                label: Text(_nomesDias[dia - 1]),
-                selected: _diasSemana.contains(dia),
-                showCheckmark: false,
-                onSelected: (selecionado) {
-                  setState(() {
-                    if (selecionado) {
-                      _diasSemana.add(dia);
-                    } else {
-                      _diasSemana.remove(dia);
-                    }
-                  });
-                },
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.schedule),
-          title: const Text('Horário inicial'),
-          subtitle: Text(_hora(_horaInicio)),
-          onTap: () => _escolherHora(true),
-        ),
-        const Divider(),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.schedule),
-          title: const Text('Horário final'),
-          subtitle: Text(_hora(_horaFim)),
-          onTap: () => _escolherHora(false),
-        ),
-        if (_erro != null) ...[
-          const SizedBox(height: 10),
-          Text(
-            _erro!,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          ),
-        ],
-        const SizedBox(height: 20),
-        FilledButton.icon(
-          onPressed: _enviando ? null : _salvar,
-          icon: _enviando
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.auto_awesome),
-          label: const Text('Gerar opções de data'),
-        ),
-      ],
-    );
   }
 }

@@ -14,6 +14,7 @@ class Local {
   final String? faixaPreco;
   final double? avaliacaoMedia;
   final int? avaliacaoTotal;
+  final int? catalogoId;
 
   Local({
     this.id,
@@ -31,7 +32,46 @@ class Local {
     this.faixaPreco,
     this.avaliacaoMedia,
     this.avaliacaoTotal,
+    this.catalogoId,
   });
+
+  Local copyWith({
+    int? id,
+    String? nome,
+    String? endereco,
+    int? numero,
+    String? complemento,
+    double? nota,
+    double? latitude,
+    double? longitude,
+    String? categoria,
+    String? cidade,
+    double? distanciaMetros,
+    String? descricao,
+    String? faixaPreco,
+    double? avaliacaoMedia,
+    int? avaliacaoTotal,
+    int? catalogoId,
+  }) {
+    return Local(
+      id: id ?? this.id,
+      nome: nome ?? this.nome,
+      endereco: endereco ?? this.endereco,
+      numero: numero ?? this.numero,
+      complemento: complemento ?? this.complemento,
+      nota: nota ?? this.nota,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      categoria: categoria ?? this.categoria,
+      cidade: cidade ?? this.cidade,
+      distanciaMetros: distanciaMetros ?? this.distanciaMetros,
+      descricao: descricao ?? this.descricao,
+      faixaPreco: faixaPreco ?? this.faixaPreco,
+      avaliacaoMedia: avaliacaoMedia ?? this.avaliacaoMedia,
+      avaliacaoTotal: avaliacaoTotal ?? this.avaliacaoTotal,
+      catalogoId: catalogoId ?? this.catalogoId,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -65,6 +105,7 @@ class Local {
       faixaPreco: _texto(map['faixa_preco']),
       avaliacaoMedia: _comoDouble(map['avaliacao_media']),
       avaliacaoTotal: _comoInt(map['avaliacao_total']),
+      catalogoId: _comoInt(map['catalogo_id']),
     );
   }
 
@@ -92,6 +133,7 @@ class Local {
       avaliacaoTotal: _comoInt(
         json['avaliacaoTotal'] ?? json['avaliacao_total'],
       ),
+      catalogoId: _comoInt(json['catalogoId'] ?? json['catalogo_id']),
     );
   }
 
@@ -104,6 +146,7 @@ class Local {
       'distanciaMetros': distanciaMetros,
       'latitude': latitude,
       'longitude': longitude,
+      'catalogoId': catalogoId,
     };
   }
 

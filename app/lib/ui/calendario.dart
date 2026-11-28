@@ -17,10 +17,10 @@ class TelaCalendario extends StatefulWidget {
   const TelaCalendario({super.key, required this.eventsController});
 
   @override
-  State<TelaCalendario> createState() => _TelaCalendarioState();
+  State<TelaCalendario> createState() => TelaCalendarioState();
 }
 
-class _TelaCalendarioState extends State<TelaCalendario> {
+class TelaCalendarioState extends State<TelaCalendario> {
   DateTime _focusedDay = DateTime.now();
   DateTime _selectedDay = DateTime.now();
 
@@ -91,6 +91,16 @@ class _TelaCalendarioState extends State<TelaCalendario> {
       _selectedDay.day,
     );
     _eventosDoDia = _eventosPorDia[dia] ?? [];
+  }
+
+  void selecionarDia(DateTime data) {
+    final local = data.toLocal();
+    final dia = DateTime(local.year, local.month, local.day);
+    setState(() {
+      _selectedDay = dia;
+      _focusedDay = dia;
+      _atualizarEventosDoDia();
+    });
   }
 
   String _formatarHora(DateTime data) {
@@ -174,7 +184,7 @@ class _TelaCalendarioState extends State<TelaCalendario> {
       if (autenticou != true || !mounted) return;
     }
 
-    await Navigator.of(context).push(
+    final criado = await Navigator.of(context).push<Evento>(
       MaterialPageRoute(
         builder: (context) => TelaCadastroEvento(
           eventsController: _controller,
@@ -183,6 +193,9 @@ class _TelaCalendarioState extends State<TelaCalendario> {
         ),
       ),
     );
+    if (criado != null && mounted) {
+      selecionarDia(criado.inicioEm ?? dia);
+    }
   }
 
   Widget _rascunhos(ThemeData theme) {
@@ -224,7 +237,7 @@ class _TelaCalendarioState extends State<TelaCalendario> {
                 title: Text(rascunho.titulo),
                 subtitle: Text(
                   rascunho.souCriador
-                      ? 'Defina os dias e confirme o evento'
+                      ? 'Defina os dias ou confirme o melhor dia'
                       : 'Marque sua disponibilidade',
                 ),
                 trailing: Icon(
@@ -466,16 +479,19 @@ class _TelaCalendarioState extends State<TelaCalendario> {
             child: _eventosDoDia.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 24),
                     children: [
-                      EstadoVazio(
-                        icone: Icons.event_busy_outlined,
-                        titulo: 'Nenhum evento neste dia',
-                        descricao:
-                            'Toque e segure um dia no calendário para criar '
-                            'um evento.',
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: PlacezTokens.espXl,
-                          vertical: 36,
+                      const SizedBox(height: PlacezTokens.espMd),
+                      _BotaoCriarEvento(
+                        onTap: () => _criarEventoNoDia(_selectedDay),
+                      ),
+                      const SizedBox(height: PlacezTokens.espMd),
+                      Center(
+                        child: Text(
+                          'Nenhum evento neste dia',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ),
                     ],
@@ -620,5 +636,105 @@ class _TelaCalendarioState extends State<TelaCalendario> {
         ),
       ),
     );
+  }
+}
+
+class _BotaoCriarEvento extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _BotaoCriarEvento({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: PlacezTokens.espLg),
+      child: CustomPaint(
+        painter: _DashedRoundedBorderPainter(
+          color: theme.colorScheme.primary.withValues(alpha: 0.7),
+          radius: PlacezTokens.raioLg,
+          dash: 7,
+          gap: 5,
+          strokeWidth: 1.5,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: PlacezTokens.bordaLg,
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 26),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.add_circle_outline,
+                    size: 30,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Criar evento',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedRoundedBorderPainter extends CustomPainter {
+  final Color color;
+  final double radius;
+  final double dash;
+  final double gap;
+  final double strokeWidth;
+
+  const _DashedRoundedBorderPainter({
+    required this.color,
+    required this.radius,
+    required this.dash,
+    required this.gap,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(radius),
+    );
+    final path = Path()..addRRect(rrect);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    for (final metric in path.computeMetrics()) {
+      var distancia = 0.0;
+      while (distancia < metric.length) {
+        final fim = (distancia + dash).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distancia, fim), paint);
+        distancia = fim + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedRoundedBorderPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.radius != radius ||
+        oldDelegate.dash != dash ||
+        oldDelegate.gap != gap ||
+        oldDelegate.strokeWidth != strokeWidth;
   }
 }

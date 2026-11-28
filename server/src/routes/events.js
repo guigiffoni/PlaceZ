@@ -67,6 +67,7 @@ const CAMPOS_EVENTO = `
   l.distancia_metros      AS local_distancia,
   l.latitude              AS local_latitude,
   l.longitude             AS local_longitude,
+  l.catalogo_id           AS local_catalogo_id,
   u.nome                  AS criador_nome,
   u.username              AS criador_username,
   (SELECT c.rsvp FROM convidado_evento c
@@ -201,7 +202,29 @@ function lerLocal(valor, erros) {
     erros,
   );
 
-  return { nome, endereco, categoria, distanciaMetros, latitude, longitude };
+  const catalogoBruto = valor.catalogoId ?? valor.catalogo_id;
+  let catalogoId = null;
+  if (catalogoBruto != null) {
+    const numero = Number(catalogoBruto);
+    if (!Number.isInteger(numero) || numero <= 0) {
+      erros.push({
+        campo: 'local.catalogoId',
+        mensagem: 'Informe um lugar válido do catálogo.',
+      });
+    } else {
+      catalogoId = numero;
+    }
+  }
+
+  return {
+    nome,
+    endereco,
+    categoria,
+    distanciaMetros,
+    latitude,
+    longitude,
+    catalogoId,
+  };
 }
 
 function numeroOuNulo(valor, minimo, maximo, campo, erros) {
@@ -529,6 +552,7 @@ function localDaLinha(linha) {
       linha.LOCAL_LATITUDE == null ? null : Number(linha.LOCAL_LATITUDE),
     longitude:
       linha.LOCAL_LONGITUDE == null ? null : Number(linha.LOCAL_LONGITUDE),
+    catalogoId: linha.LOCAL_CATALOGO_ID || null,
   };
 }
 
@@ -571,8 +595,12 @@ async function insereLocal(conexao, local) {
   if (!oracledb) throw new db.BancoIndisponivelError();
 
   const resultado = await conexao.execute(
-    `INSERT INTO local (nome, endereco, categoria, distancia_metros, latitude, longitude)
-     VALUES (:nome, :endereco, :categoria, :distancia, :latitude, :longitude)
+    `INSERT INTO local
+       (nome, endereco, categoria, distancia_metros, latitude, longitude,
+        catalogo_id)
+     VALUES
+       (:nome, :endereco, :categoria, :distancia, :latitude, :longitude,
+        :catalogoId)
      RETURNING id INTO :id`,
     {
       nome: local.nome,
@@ -581,6 +609,7 @@ async function insereLocal(conexao, local) {
       distancia: local.distanciaMetros,
       latitude: local.latitude,
       longitude: local.longitude,
+      catalogoId: local.catalogoId,
       id: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
     },
   );
@@ -1035,9 +1064,8 @@ router.get('/eventos/gerenciaveis', async (req, res) => {
          LEFT JOIN local l ON l.id = e.local_id
         WHERE e.criador_id = :eu
           AND e.status <> 'CANCELADO'
-        ORDER BY CASE e.status WHEN 'RASCUNHO' THEN 0 ELSE 1 END,
-                 e.inicio_em ASC NULLS LAST,
-                 e.id DESC`,
+        ORDER BY e.atualizado_em DESC, e.id DESC
+        FETCH FIRST 5 ROWS ONLY`,
       { eu },
     );
 
@@ -1748,6 +1776,7 @@ router.post('/eventos/:id/enquete', async (req, res) => {
   }
 
   const corpo = req.body || {};
+  const regenerar = corpo.regerar === true;
   const erros = [];
   const dataInicio = lerDia(corpo.dataInicio, 'dataInicio', erros);
   const dataFim = lerDia(corpo.dataFim, 'dataFim', erros);
@@ -1818,7 +1847,13 @@ router.post('/eventos/:id/enquete', async (req, res) => {
         { id },
       );
       if ((existente.rows || []).length > 0) {
-        return { erro: { status: 409, codigo: 'ENQUETE_EXISTENTE' } };
+        if (!regenerar) {
+          return { erro: { status: 409, codigo: 'ENQUETE_EXISTENTE' } };
+        }
+        await conexao.execute(
+          `DELETE FROM enquete_disponibilidade WHERE evento_id = :id`,
+          { id },
+        );
       }
 
       const criado = await conexao.execute(
@@ -1865,9 +1900,13 @@ router.post('/eventos/:id/enquete', async (req, res) => {
         resposta.erro.codigo,
       );
     }
-    return res.status(201).json(resposta);
+    return res.status(regenerar ? 200 : 201).json(resposta);
   } catch (erro) {
-    return tratarErro(res, erro, 'criação de combinação de dias');
+    return tratarErro(
+      res,
+      erro,
+      regenerar ? 'regeneração de combinação de dias' : 'criação de combinação de dias',
+    );
   }
 });
 

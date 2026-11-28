@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/auth/auth_controller.dart';
 import 'core/events/events_controller.dart';
 import 'core/notificacoes/notificacao_service.dart';
+import 'data/models/evento.dart';
 import 'data/models/local.dart';
 import 'tema.dart';
 import 'ui/calendario.dart';
@@ -135,6 +137,12 @@ class _BarraNavegacaoState extends State<BarraNavegacao> {
   late final EventsController _eventsController;
   final GlobalKey<TelaCadastroEventoState> _cadastroKey =
       GlobalKey<TelaCadastroEventoState>();
+  final GlobalKey<TelaCalendarioState> _calendarKey =
+      GlobalKey<TelaCalendarioState>();
+
+  static const MethodChannel _canalApp = MethodChannel(
+    'br.pucminas.placez/app',
+  );
 
   static const int _abaChat = 1;
   static const int _abaNovoEvento = 2;
@@ -207,6 +215,26 @@ class _BarraNavegacaoState extends State<BarraNavegacao> {
     });
   }
 
+  void _eventoCriado(Evento evento) {
+    final data = evento.inicioEm?.toLocal() ?? DateTime.now();
+    setState(() {
+      _selecionandoLocal = false;
+      _currentPageIndex = 0;
+    });
+    _calendarKey.currentState?.selecionarDia(data);
+    _eventsController.atualizarCalendario();
+  }
+
+  Future<void> _minimizarApp() async {
+    try {
+      await _canalApp.invokeMethod<void>('minimize');
+    } on MissingPluginException {
+      await SystemNavigator.pop();
+    } catch (_) {
+      await SystemNavigator.pop();
+    }
+  }
+
   Future<void> _selecionarAba(int indice) async {
     final protegida = indice == _abaChat || indice == _abaNovoEvento;
 
@@ -233,103 +261,121 @@ class _BarraNavegacaoState extends State<BarraNavegacao> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _selecionandoLocal ? 'Escolher local' : _titulos[_currentPageIndex],
-        ),
-        actions: _selecionandoLocal
-            ? [
-                IconButton(
-                  tooltip: 'Cancelar seleção',
-                  onPressed: _cancelarSelecao,
-                  icon: const Icon(Icons.close),
-                ),
-              ]
-            : [
-                IconButton(
-                  tooltip: 'Configurações',
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => TelaConfiguracoes(
-                          temaController: widget.temaController,
-                          authController: widget.authController,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        if (_currentPageIndex != 0 || _selecionandoLocal) {
+          setState(() {
+            _selecionandoLocal = false;
+            _currentPageIndex = 0;
+          });
+          return;
+        }
+        await _minimizarApp();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            _selecionandoLocal ? 'Escolher local' : _titulos[_currentPageIndex],
+          ),
+          actions: _selecionandoLocal
+              ? [
+                  IconButton(
+                    tooltip: 'Cancelar seleção',
+                    onPressed: _cancelarSelecao,
+                    icon: const Icon(Icons.close),
+                  ),
+                ]
+              : [
+                  IconButton(
+                    tooltip: 'Configurações',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => TelaConfiguracoes(
+                            temaController: widget.temaController,
+                            authController: widget.authController,
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.settings_outlined),
-                ),
-                IconButton(
-                  tooltip: 'Sobre o PlaceZ',
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TelaSobre(),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.info_outline),
-                ),
-              ],
-      ),
+                      );
+                    },
+                    icon: const Icon(Icons.settings_outlined),
+                  ),
+                  IconButton(
+                    tooltip: 'Sobre o PlaceZ',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TelaSobre(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.info_outline),
+                  ),
+                ],
+        ),
 
-      body: IndexedStack(
-        index: _currentPageIndex,
-        children: [
-          TelaCalendario(eventsController: _eventsController),
-          TelaChat(
-            authController: widget.authController,
-            ativo: _currentPageIndex == _abaChat,
-          ),
-          TelaCadastroEvento(
-            key: _cadastroKey,
-            eventsController: _eventsController,
-            mostrarAppBar: false,
-            onBuscarNoCatalogo: _abrirCatalogoParaEvento,
-          ),
-          TelaPesquisa(
-            authController: widget.authController,
-            modoSelecao: _selecionandoLocal,
-            onSelecionar: _selecionarLocalParaEvento,
-          ),
-          TelaAmigos(authController: widget.authController),
-        ],
-      ),
+        body: IndexedStack(
+          index: _currentPageIndex,
+          children: [
+            TelaCalendario(
+              key: _calendarKey,
+              eventsController: _eventsController,
+            ),
+            TelaChat(
+              authController: widget.authController,
+              ativo: _currentPageIndex == _abaChat,
+            ),
+            TelaCadastroEvento(
+              key: _cadastroKey,
+              eventsController: _eventsController,
+              mostrarAppBar: false,
+              onBuscarNoCatalogo: _abrirCatalogoParaEvento,
+              onEventoCriado: _eventoCriado,
+            ),
+            TelaPesquisa(
+              authController: widget.authController,
+              modoSelecao: _selecionandoLocal,
+              onSelecionar: _selecionarLocalParaEvento,
+            ),
+            TelaAmigos(authController: widget.authController),
+          ],
+        ),
 
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentPageIndex,
-        onDestinationSelected: _selecionarAba,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined),
-            selectedIcon: Icon(Icons.calendar_month),
-            label: 'Agenda',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble),
-            label: 'Chat',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.add_circle_outline),
-            selectedIcon: Icon(Icons.add_circle),
-            label: 'Novo',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.search),
-            selectedIcon: Icon(Icons.saved_search),
-            label: 'Buscar',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people),
-            label: 'Amigos',
-          ),
-        ],
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _currentPageIndex,
+          onDestinationSelected: _selecionarAba,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.calendar_month_outlined),
+              selectedIcon: Icon(Icons.calendar_month),
+              label: 'Agenda',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.chat_bubble_outline),
+              selectedIcon: Icon(Icons.chat_bubble),
+              label: 'Chat',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.add_circle_outline),
+              selectedIcon: Icon(Icons.add_circle),
+              label: 'Novo',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.search),
+              selectedIcon: Icon(Icons.saved_search),
+              label: 'Buscar',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.people_outline),
+              selectedIcon: Icon(Icons.people),
+              label: 'Amigos',
+            ),
+          ],
+        ),
       ),
     );
   }
