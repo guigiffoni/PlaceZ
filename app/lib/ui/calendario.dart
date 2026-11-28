@@ -28,6 +28,8 @@ class TelaCalendarioState extends State<TelaCalendario> {
   Map<DateTime, List<Evento>> _eventosPorDia = {};
   List<Evento> _eventosDoDia = [];
 
+  bool _abrindoDetalhe = false;
+
   EventsController get _controller => widget.eventsController;
 
   @override
@@ -52,10 +54,13 @@ class TelaCalendarioState extends State<TelaCalendario> {
 
       final dataInicio = inicio.toLocal();
       var dia = DateTime(dataInicio.year, dataInicio.month, dataInicio.day);
+
       final fim = evento.fimEm?.toLocal();
+
       final ultimoDia = fim == null
           ? dia
           : DateTime(fim.year, fim.month, fim.day);
+
       var restantes = 60;
 
       while (!dia.isAfter(ultimoDia) && restantes > 0) {
@@ -91,12 +96,14 @@ class TelaCalendarioState extends State<TelaCalendario> {
       _selectedDay.month,
       _selectedDay.day,
     );
+
     _eventosDoDia = _eventosPorDia[dia] ?? [];
   }
 
   void selecionarDia(DateTime data) {
     final local = data.toLocal();
     final dia = DateTime(local.year, local.month, local.day);
+
     setState(() {
       _selectedDay = dia;
       _focusedDay = dia;
@@ -104,19 +111,40 @@ class TelaCalendarioState extends State<TelaCalendario> {
     });
   }
 
+  Future<void> _selecionarDiaCalendario(
+    DateTime selectedDay,
+    DateTime focusedDay,
+  ) async {
+    if (!mounted || _abrindoDetalhe) return;
+
+    setState(() {
+      _selectedDay = selectedDay;
+      _focusedDay = focusedDay;
+      _atualizarEventosDoDia();
+    });
+
+    if (_eventosDoDia.length == 1) {
+      await _abrirDetalhe(_eventosDoDia.first);
+    }
+  }
+
   String _formatarHora(DateTime data) {
     final local = data.toLocal();
     final hora = local.hour.toString().padLeft(2, '0');
     final minuto = local.minute.toString().padLeft(2, '0');
+
     return '$hora:$minuto';
   }
 
   bool _eventoMultiDia(Evento evento) {
     final inicio = evento.inicioEm;
     final fim = evento.fimEm;
+
     if (inicio == null || fim == null) return false;
+
     final a = inicio.toLocal();
     final b = fim.toLocal();
+
     return DateTime(a.year, a.month, a.day) != DateTime(b.year, b.month, b.day);
   }
 
@@ -124,6 +152,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
     final local = data.toLocal();
     final dia = local.day.toString().padLeft(2, '0');
     final mes = local.month.toString().padLeft(2, '0');
+
     return '$dia/$mes';
   }
 
@@ -135,41 +164,52 @@ class TelaCalendarioState extends State<TelaCalendario> {
       else
         'Sem local definido',
     ];
+
     return partes.join(' · ');
   }
 
   String _formatarDiaLongo(DateTime data) {
-    // O TableCalendar entrega os dias em UTC; usar os componentes evita
-    // deslocar o dia ao converter para o fuso local.
     final agora = DateTime.now();
+
     final ehHoje =
         data.year == agora.year &&
         data.month == agora.month &&
         data.day == agora.day;
+
     final texto = _capitalizar(
       DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(data),
     );
+
     return ehHoje ? 'Hoje · $texto' : texto;
   }
 
   String _capitalizar(String texto) {
     if (texto.isEmpty) return texto;
+
     return texto[0].toUpperCase() + texto.substring(1);
   }
 
   Future<void> _abrirDetalhe(Evento evento, {int abaInicial = 0}) async {
     final id = evento.id;
-    if (id == null) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => TelaDetalheEvento(
-          eventsController: _controller,
-          eventoId: id,
-          eventoInicial: evento,
-          abaInicial: abaInicial,
+
+    if (id == null || !mounted || _abrindoDetalhe) return;
+
+    _abrindoDetalhe = true;
+
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => TelaDetalheEvento(
+            eventsController: _controller,
+            eventoId: id,
+            eventoInicial: evento,
+            abaInicial: abaInicial,
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      _abrindoDetalhe = false;
+    }
   }
 
   Future<void> _criarEventoNoDia(DateTime dia) async {
@@ -182,6 +222,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
           ),
         ),
       );
+
       if (autenticou != true || !mounted) return;
     }
 
@@ -194,6 +235,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
         ),
       ),
     );
+
     if (criado != null && mounted) {
       selecionarDia(criado.inicioEm ?? dia);
     }
@@ -304,6 +346,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
     return Column(
       children: [
         if (_controller.carregando) const LinearProgressIndicator(),
+
         if (_controller.erro != null) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -323,6 +366,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
             ),
           ),
         ],
+
         if (_controller.mostrandoCache)
           const Padding(
             padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -330,15 +374,19 @@ class TelaCalendarioState extends State<TelaCalendario> {
               'Sem conexão com a API. Mostrando eventos salvos no aparelho.',
             ),
           ),
+
         if (!_controller.auth.autenticado)
           const Padding(
             padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: AvisoPlacez('Entre para ver os eventos dos seus amigos.'),
           ),
+
         if (_controller.auth.autenticado && _controller.rascunhos.isNotEmpty)
           _rascunhos(theme),
+
         if (_controller.auth.autenticado && _controller.ranking.isNotEmpty)
           _filtroPessoas(theme),
+
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
           child: DecoratedBox(
@@ -366,9 +414,11 @@ class TelaCalendarioState extends State<TelaCalendario> {
                       focusedDay: _focusedDay,
                       locale: 'pt_BR',
                       calendarFormat: CalendarFormat.month,
+
                       availableCalendarFormats: const {
                         CalendarFormat.month: 'Mês',
                       },
+
                       headerStyle: HeaderStyle(
                         formatButtonVisible: false,
                         titleCentered: true,
@@ -388,6 +438,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
                           DateFormat('MMMM y', 'pt_BR').format(date),
                         ),
                       ),
+
                       daysOfWeekStyle: DaysOfWeekStyle(
                         weekdayStyle: theme.textTheme.labelSmall!.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
@@ -398,59 +449,68 @@ class TelaCalendarioState extends State<TelaCalendario> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+
                       selectedDayPredicate: (day) =>
                           isSameDay(_selectedDay, day),
+
                       eventLoader: (day) {
                         final dia = DateTime(day.year, day.month, day.day);
+
                         return _eventosPorDia[dia] ?? [];
                       },
+
                       calendarStyle: CalendarStyle(
                         outsideDaysVisible: false,
                         cellMargin: const EdgeInsets.all(4),
                         defaultTextStyle: theme.textTheme.bodyMedium!,
                         weekendTextStyle: theme.textTheme.bodyMedium!,
+
                         todayDecoration: BoxDecoration(
                           color: theme.colorScheme.tertiaryContainer,
                           shape: BoxShape.circle,
                         ),
+
                         todayTextStyle: theme.textTheme.bodyMedium!.copyWith(
                           color: theme.colorScheme.onTertiaryContainer,
                           fontWeight: FontWeight.w700,
                         ),
+
                         selectedDecoration: BoxDecoration(
                           color: theme.colorScheme.primary,
                           shape: BoxShape.circle,
                         ),
+
                         selectedTextStyle: theme.textTheme.bodyMedium!.copyWith(
                           color: theme.colorScheme.onPrimary,
                           fontWeight: FontWeight.w700,
                         ),
+
                         markerDecoration: BoxDecoration(
                           color: theme.colorScheme.primary,
                           shape: BoxShape.circle,
                         ),
+
                         markersMaxCount: 3,
                         markerSize: 5,
                         markersAlignment: Alignment.bottomCenter,
                       ),
-                      onDaySelected: (selectedDay, focusedDay) {
-                        setState(() {
-                          _selectedDay = selectedDay;
-                          _focusedDay = focusedDay;
-                          _atualizarEventosDoDia();
-                        });
-                      },
+
+                      onDaySelected: _selecionarDiaCalendario,
+
                       onDayLongPressed: (day, focusedDay) {
                         setState(() {
                           _selectedDay = day;
                           _focusedDay = focusedDay;
                           _atualizarEventosDoDia();
                         });
+
                         _criarEventoNoDia(day);
                       },
+
                       onPageChanged: (focusedDay) {
                         _focusedDay = focusedDay;
                       },
+
                       rowHeight: 54,
                     ),
                   ),
@@ -459,6 +519,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
             ),
           ),
         ),
+
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
           child: Row(
@@ -492,6 +553,21 @@ class TelaCalendarioState extends State<TelaCalendario> {
             ],
           ),
         ),
+
+        if (_eventosDoDia.length > 1)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Selecione um evento para ver os detalhes.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+
         Expanded(
           child: RefreshIndicator(
             onRefresh: () => _controller.carregar(),
@@ -531,8 +607,11 @@ class TelaCalendarioState extends State<TelaCalendario> {
 
   Widget _eventoTile(Evento evento, ThemeData theme) {
     final inicio = evento.inicioEm;
+
     final hora = inicio == null ? '--:--' : _formatarHora(inicio);
+
     final temLocal = evento.local?.nome != null;
+
     final paleta = paletaCategoria(theme.colorScheme, evento.local?.categoria);
 
     return Card(
@@ -574,7 +653,9 @@ class TelaCalendarioState extends State<TelaCalendario> {
                   ],
                 ),
               ),
+
               const SizedBox(width: PlacezTokens.espMd),
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,7 +668,9 @@ class TelaCalendarioState extends State<TelaCalendario> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+
                     const SizedBox(height: 4),
+
                     Row(
                       children: [
                         Icon(
@@ -610,6 +693,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
                         ),
                       ],
                     ),
+
                     if (evento.contagem.vou > 0) ...[
                       const SizedBox(height: PlacezTokens.espSm),
                       Container(
@@ -634,6 +718,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
                   ],
                 ),
               ),
+
               if (evento.temImagem && evento.id != null) ...[
                 const SizedBox(width: PlacezTokens.espSm),
                 ImagemEvento(
@@ -646,6 +731,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
                   borderRadius: PlacezTokens.bordaMd,
                 ),
               ],
+
               Icon(
                 Icons.chevron_right,
                 color: theme.colorScheme.onSurfaceVariant,
@@ -731,7 +817,9 @@ class _DashedRoundedBorderPainter extends CustomPainter {
       Offset.zero & size,
       Radius.circular(radius),
     );
+
     final path = Path()..addRRect(rrect);
+
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
@@ -740,9 +828,12 @@ class _DashedRoundedBorderPainter extends CustomPainter {
 
     for (final metric in path.computeMetrics()) {
       var distancia = 0.0;
+
       while (distancia < metric.length) {
         final fim = (distancia + dash).clamp(0.0, metric.length);
+
         canvas.drawPath(metric.extractPath(distancia, fim), paint);
+
         distancia = fim + gap;
       }
     }
