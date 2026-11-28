@@ -21,6 +21,18 @@ class PlacezTokens {
   static const BorderRadius bordaLg = BorderRadius.all(Radius.circular(raioLg));
 }
 
+/// Cores fixas da identidade do PlaceZ, usadas como acentos sobre a cor
+/// principal escolhida pelo usuário.
+class PlacezCores {
+  const PlacezCores._();
+
+  static const Color teal = Color(0xFF0F9D8A);
+  static const Color ambar = Color(0xFFD97706);
+  static const Color roxo = Color(0xFF7C3AED);
+  static const Color rosa = Color(0xFFDB2777);
+  static const Color azul = Color(0xFF2563EB);
+}
+
 /// Par de cores (fundo/frente/borda) para transmitir um estado.
 class PaletaStatus {
   final Color fundo;
@@ -43,6 +55,44 @@ extension CoresSemanticas on ColorScheme {
 
   /// Superfície de cartões e blocos.
   Color get superficieCartao => surfaceContainerLow;
+
+  PaletaStatus _acento(Color cor) {
+    final frente = ehEscuro
+        ? Color.lerp(cor, Colors.white, 0.38)!
+        : Color.lerp(cor, Colors.black, 0.12)!;
+    final fundo = cor.withValues(alpha: ehEscuro ? 0.24 : 0.13);
+    final borda = cor.withValues(alpha: ehEscuro ? 0.48 : 0.3);
+    return PaletaStatus(fundo: fundo, frente: frente, borda: borda);
+  }
+
+  PaletaStatus get acentoTeal => _acento(PlacezCores.teal);
+  PaletaStatus get acentoAmbar => _acento(PlacezCores.ambar);
+  PaletaStatus get acentoRoxo => _acento(PlacezCores.roxo);
+  PaletaStatus get acentoRosa => _acento(PlacezCores.rosa);
+  PaletaStatus get acentoAzul => _acento(PlacezCores.azul);
+
+  /// Faixa multicolorida da marca.
+  LinearGradient get gradienteMarca => LinearGradient(
+    colors: [primary, acentoTeal.frente, acentoAmbar.frente],
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+  );
+
+  /// Paleta estável para o avatar de iniciais de uma pessoa.
+  PaletaStatus paletaAvatar(String nome, int usuarioId) {
+    final paletas = [
+      acentoTeal,
+      acentoAmbar,
+      acentoRoxo,
+      acentoRosa,
+      acentoAzul,
+    ];
+    final soma = nome.codeUnits.fold<int>(
+      usuarioId.abs(),
+      (total, codigo) => total + codigo,
+    );
+    return paletas[soma % paletas.length];
+  }
 
   PaletaStatus get sucesso => ehEscuro
       ? const PaletaStatus(

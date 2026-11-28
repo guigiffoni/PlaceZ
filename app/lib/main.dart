@@ -261,6 +261,8 @@ class _BarraNavegacaoState extends State<BarraNavegacao> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -316,6 +318,13 @@ class _BarraNavegacaoState extends State<BarraNavegacao> {
                     icon: const Icon(Icons.info_outline),
                   ),
                 ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(3),
+            child: Container(
+              height: 3,
+              decoration: BoxDecoration(gradient: scheme.gradienteMarca),
+            ),
+          ),
         ),
 
         body: IndexedStack(
@@ -348,30 +357,39 @@ class _BarraNavegacaoState extends State<BarraNavegacao> {
         bottomNavigationBar: NavigationBar(
           selectedIndex: _currentPageIndex,
           onDestinationSelected: _selecionarAba,
-          destinations: const [
+          destinations: [
             NavigationDestination(
-              icon: Icon(Icons.calendar_month_outlined),
-              selectedIcon: Icon(Icons.calendar_month),
+              icon: Icon(
+                Icons.calendar_month_outlined,
+                color: scheme.acentoTeal.frente,
+              ),
+              selectedIcon: Icon(Icons.calendar_month, color: scheme.primary),
               label: 'Agenda',
             ),
             NavigationDestination(
-              icon: Icon(Icons.chat_bubble_outline),
-              selectedIcon: Icon(Icons.chat_bubble),
+              icon: Icon(
+                Icons.chat_bubble_outline,
+                color: scheme.acentoAmbar.frente,
+              ),
+              selectedIcon: Icon(Icons.chat_bubble, color: scheme.primary),
               label: 'Chat',
             ),
             NavigationDestination(
-              icon: Icon(Icons.add_circle_outline),
-              selectedIcon: Icon(Icons.add_circle),
+              icon: Icon(
+                Icons.add_circle_outline,
+                color: scheme.acentoRosa.frente,
+              ),
+              selectedIcon: Icon(Icons.add_circle, color: scheme.primary),
               label: 'Novo',
             ),
             NavigationDestination(
-              icon: Icon(Icons.search),
-              selectedIcon: Icon(Icons.saved_search),
+              icon: Icon(Icons.search, color: scheme.acentoRoxo.frente),
+              selectedIcon: Icon(Icons.saved_search, color: scheme.primary),
               label: 'Buscar',
             ),
             NavigationDestination(
-              icon: Icon(Icons.people_outline),
-              selectedIcon: Icon(Icons.people),
+              icon: Icon(Icons.people_outline, color: scheme.acentoAzul.frente),
+              selectedIcon: Icon(Icons.people, color: scheme.primary),
               label: 'Amigos',
             ),
           ],

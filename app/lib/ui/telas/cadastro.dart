@@ -821,7 +821,12 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
           children: [
-            _rotuloSecao('Sobre o evento', Icons.celebration_outlined, theme),
+            _rotuloSecao(
+              'Sobre o evento',
+              Icons.celebration_outlined,
+              theme,
+              cor: theme.colorScheme.acentoAmbar.frente,
+            ),
             TextFormField(
               controller: _tituloController,
               decoration: const InputDecoration(
@@ -848,7 +853,12 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
               ),
             ),
             const SizedBox(height: PlacezTokens.espXl),
-            _rotuloSecao('Quando e onde', Icons.event_outlined, theme),
+            _rotuloSecao(
+              'Quando e onde',
+              Icons.event_outlined,
+              theme,
+              cor: theme.colorScheme.acentoTeal.frente,
+            ),
             Card(
               child: Column(
                 children: [
@@ -929,7 +939,12 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
             const SizedBox(height: PlacezTokens.espXl),
             _secaoImagem(theme),
             const SizedBox(height: PlacezTokens.espXl),
-            _rotuloSecao('Privacidade e convites', Icons.lock_outline, theme),
+            _rotuloSecao(
+              'Privacidade e convites',
+              Icons.lock_outline,
+              theme,
+              cor: theme.colorScheme.acentoRoxo.frente,
+            ),
             Card(
               child: Column(
                 children: [
@@ -995,12 +1010,17 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
     );
   }
 
-  Widget _rotuloSecao(String titulo, IconData icone, ThemeData theme) {
+  Widget _rotuloSecao(
+    String titulo,
+    IconData icone,
+    ThemeData theme, {
+    Color? cor,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: PlacezTokens.espSm),
       child: Row(
         children: [
-          Icon(icone, size: 18, color: theme.colorScheme.primary),
+          Icon(icone, size: 18, color: cor ?? theme.colorScheme.primary),
           const SizedBox(width: PlacezTokens.espSm),
           Text(
             titulo,
@@ -1079,7 +1099,12 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _rotuloSecao('Imagem do evento', Icons.image_outlined, theme),
+        _rotuloSecao(
+          'Imagem do evento',
+          Icons.image_outlined,
+          theme,
+          cor: theme.colorScheme.acentoRosa.frente,
+        ),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(PlacezTokens.espMd),
@@ -1208,6 +1233,12 @@ class TelaCadastroEventoState extends State<TelaCadastroEvento> {
       children: [
         Row(
           children: [
+            Icon(
+              Icons.people_outline,
+              size: 18,
+              color: theme.colorScheme.acentoAzul.frente,
+            ),
+            const SizedBox(width: PlacezTokens.espSm),
             Expanded(
               child: Text(
                 'Convidados',

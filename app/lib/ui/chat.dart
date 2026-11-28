@@ -4,6 +4,7 @@ import '../core/auth/auth_controller.dart';
 import '../core/chat/conversas_controller.dart';
 import '../data/models/conversa.dart';
 import '../data/models/grupo.dart';
+import '../tema.dart';
 import 'telas/conversa.dart';
 import 'telas/criar_grupo.dart';
 import 'telas/login.dart';
@@ -288,9 +289,17 @@ class _TelaChatState extends State<TelaChat> with WidgetsBindingObserver {
 
     return ListTile(
       leading: ehEvento
-          ? const CircleAvatar(child: Icon(Icons.groups))
+          ? CircleAvatar(
+              backgroundColor: theme.colorScheme.acentoTeal.fundo,
+              foregroundColor: theme.colorScheme.acentoTeal.frente,
+              child: const Icon(Icons.groups),
+            )
           : ehGrupo
-          ? const CircleAvatar(child: Icon(Icons.group))
+          ? CircleAvatar(
+              backgroundColor: theme.colorScheme.acentoRoxo.fundo,
+              foregroundColor: theme.colorScheme.acentoRoxo.frente,
+              child: const Icon(Icons.group),
+            )
           : AvatarUsuario(
               auth: widget.authController,
               usuarioId: conversa.outroUsuario?.id ?? 0,
@@ -424,7 +433,7 @@ class _Visitante extends StatelessWidget {
               Icon(
                 Icons.chat_bubble_outline,
                 size: 64,
-                color: theme.colorScheme.primary,
+                color: theme.colorScheme.acentoAmbar.frente,
               ),
               const SizedBox(height: 16),
               Text(
@@ -470,7 +479,7 @@ class _EstadoVazio extends StatelessWidget {
           Icon(
             Icons.forum_outlined,
             size: 48,
-            color: theme.colorScheme.outline,
+            color: theme.colorScheme.acentoAmbar.frente,
           ),
           const SizedBox(height: 12),
           Text('Nenhuma conversa ainda', style: theme.textTheme.titleMedium),

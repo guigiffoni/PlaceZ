@@ -190,7 +190,10 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
       IconButton(
         tooltip: 'Editar evento',
         onPressed: habilitado ? () => _abrirEdicao(evento) : null,
-        icon: const Icon(Icons.edit_outlined),
+        icon: Icon(
+          Icons.edit_outlined,
+          color: theme.colorScheme.acentoTeal.frente,
+        ),
       ),
       IconButton(
         tooltip: 'Cancelar evento',
@@ -502,7 +505,10 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
                     children: [
                       if (evento.status == 'RASCUNHO')
                         ListTile(
-                          leading: const Icon(Icons.auto_awesome_outlined),
+                          leading: Icon(
+                            Icons.auto_awesome_outlined,
+                            color: theme.colorScheme.acentoRoxo.frente,
+                          ),
                           title: const Text('Combinação de dias'),
                           subtitle: Text(
                             evento.souCriador
@@ -521,19 +527,28 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
                         )
                       else ...[
                         ListTile(
-                          leading: const Icon(Icons.calendar_today),
+                          leading: Icon(
+                            Icons.calendar_today,
+                            color: theme.colorScheme.acentoTeal.frente,
+                          ),
                           title: const Text('Início'),
                           subtitle: Text(_formatarDataHora(evento.inicioEm)),
                         ),
                         ListTile(
-                          leading: const Icon(Icons.event_available),
+                          leading: Icon(
+                            Icons.event_available,
+                            color: theme.colorScheme.acentoAmbar.frente,
+                          ),
                           title: const Text('Fim'),
                           subtitle: Text(_formatarDataHora(evento.fimEm)),
                         ),
                       ],
                       if (evento.local != null)
                         ListTile(
-                          leading: const Icon(Icons.location_on_outlined),
+                          leading: Icon(
+                            Icons.location_on_outlined,
+                            color: theme.colorScheme.acentoRosa.frente,
+                          ),
                           title: Text(evento.local!.rotulo),
                           subtitle: Text(
                             [
@@ -667,11 +682,25 @@ class _TelaDetalheEventoState extends State<TelaDetalheEvento> {
       borda: theme.colorScheme.secondary.withValues(alpha: 0.3),
     );
 
+    final fundoBase = theme.colorScheme.surfaceContainerLow;
+    final teal = Color.alphaBlend(
+      theme.colorScheme.acentoTeal.fundo,
+      fundoBase,
+    );
+    final ambar = Color.alphaBlend(
+      theme.colorScheme.acentoAmbar.fundo,
+      fundoBase,
+    );
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(PlacezTokens.espLg),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
+        gradient: LinearGradient(
+          colors: [theme.colorScheme.primaryContainer, teal, ambar],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: PlacezTokens.bordaLg,
         border: Border.all(color: theme.colorScheme.bordaSutil),
       ),

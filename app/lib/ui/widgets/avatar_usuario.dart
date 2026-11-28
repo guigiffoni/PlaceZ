@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_config.dart';
+import '../../tema.dart';
 
 class AvatarUsuario extends StatelessWidget {
   final AuthController auth;
@@ -35,14 +36,14 @@ class AvatarUsuario extends StatelessWidget {
     final token = auth.sessao?.token;
     final iniciais = _iniciais;
     final theme = Theme.of(context);
+    final paleta = theme.colorScheme.paletaAvatar(nome, usuarioId);
+    final fundo = Color.alphaBlend(paleta.fundo, theme.colorScheme.surface);
 
     Widget fallback() {
       return Center(
         child: Text(
           iniciais,
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: theme.colorScheme.onPrimaryContainer,
-          ),
+          style: theme.textTheme.titleSmall?.copyWith(color: paleta.frente),
         ),
       );
     }
@@ -50,7 +51,7 @@ class AvatarUsuario extends StatelessWidget {
     if (token == null || token.isEmpty) {
       return CircleAvatar(
         radius: raio,
-        backgroundColor: theme.colorScheme.primaryContainer,
+        backgroundColor: fundo,
         child: fallback(),
       );
     }
@@ -59,7 +60,7 @@ class AvatarUsuario extends StatelessWidget {
       label: nome,
       child: CircleAvatar(
         radius: raio,
-        backgroundColor: theme.colorScheme.primaryContainer,
+        backgroundColor: fundo,
         child: ClipOval(
           child: Image.network(
             '${ApiConfig.baseUrl}/usuarios/$usuarioId/foto?v=$versao',

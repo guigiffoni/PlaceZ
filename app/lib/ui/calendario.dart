@@ -5,6 +5,7 @@ import 'package:table_calendar/table_calendar.dart';
 import '../core/events/events_controller.dart';
 import '../data/models/evento.dart';
 import '../tema.dart';
+import 'cores_categoria.dart';
 import 'telas/cadastro.dart';
 import 'telas/evento_detalhe.dart';
 import 'telas/login.dart';
@@ -346,96 +347,114 @@ class TelaCalendarioState extends State<TelaCalendario> {
               borderRadius: PlacezTokens.bordaLg,
               border: Border.all(color: theme.colorScheme.bordaSutil),
             ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(6, 4, 6, 10),
-              child: TableCalendar<Evento>(
-                firstDay: DateTime.utc(2020, 1, 1),
-                lastDay: DateTime.utc(2030, 12, 31),
-                focusedDay: _focusedDay,
-                locale: 'pt_BR',
-                calendarFormat: CalendarFormat.month,
-                availableCalendarFormats: const {CalendarFormat.month: 'Mês'},
-                headerStyle: HeaderStyle(
-                  formatButtonVisible: false,
-                  titleCentered: true,
-                  headerPadding: const EdgeInsets.symmetric(vertical: 8),
-                  titleTextStyle: theme.textTheme.titleMedium!.copyWith(
-                    fontWeight: FontWeight.w800,
+            child: ClipRRect(
+              borderRadius: PlacezTokens.bordaLg,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    height: 4,
+                    decoration: BoxDecoration(
+                      gradient: theme.colorScheme.gradienteMarca,
+                    ),
                   ),
-                  leftChevronIcon: Icon(
-                    Icons.chevron_left,
-                    color: theme.colorScheme.primary,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 4, 6, 10),
+                    child: TableCalendar<Evento>(
+                      firstDay: DateTime.utc(2020, 1, 1),
+                      lastDay: DateTime.utc(2030, 12, 31),
+                      focusedDay: _focusedDay,
+                      locale: 'pt_BR',
+                      calendarFormat: CalendarFormat.month,
+                      availableCalendarFormats: const {
+                        CalendarFormat.month: 'Mês',
+                      },
+                      headerStyle: HeaderStyle(
+                        formatButtonVisible: false,
+                        titleCentered: true,
+                        headerPadding: const EdgeInsets.symmetric(vertical: 8),
+                        titleTextStyle: theme.textTheme.titleMedium!.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                        leftChevronIcon: Icon(
+                          Icons.chevron_left,
+                          color: theme.colorScheme.primary,
+                        ),
+                        rightChevronIcon: Icon(
+                          Icons.chevron_right,
+                          color: theme.colorScheme.primary,
+                        ),
+                        titleTextFormatter: (date, locale) => _capitalizar(
+                          DateFormat('MMMM y', 'pt_BR').format(date),
+                        ),
+                      ),
+                      daysOfWeekStyle: DaysOfWeekStyle(
+                        weekdayStyle: theme.textTheme.labelSmall!.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        weekendStyle: theme.textTheme.labelSmall!.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      selectedDayPredicate: (day) =>
+                          isSameDay(_selectedDay, day),
+                      eventLoader: (day) {
+                        final dia = DateTime(day.year, day.month, day.day);
+                        return _eventosPorDia[dia] ?? [];
+                      },
+                      calendarStyle: CalendarStyle(
+                        outsideDaysVisible: false,
+                        cellMargin: const EdgeInsets.all(4),
+                        defaultTextStyle: theme.textTheme.bodyMedium!,
+                        weekendTextStyle: theme.textTheme.bodyMedium!,
+                        todayDecoration: BoxDecoration(
+                          color: theme.colorScheme.tertiaryContainer,
+                          shape: BoxShape.circle,
+                        ),
+                        todayTextStyle: theme.textTheme.bodyMedium!.copyWith(
+                          color: theme.colorScheme.onTertiaryContainer,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        selectedDecoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        selectedTextStyle: theme.textTheme.bodyMedium!.copyWith(
+                          color: theme.colorScheme.onPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        markerDecoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        markersMaxCount: 3,
+                        markerSize: 5,
+                        markersAlignment: Alignment.bottomCenter,
+                      ),
+                      onDaySelected: (selectedDay, focusedDay) {
+                        setState(() {
+                          _selectedDay = selectedDay;
+                          _focusedDay = focusedDay;
+                          _atualizarEventosDoDia();
+                        });
+                      },
+                      onDayLongPressed: (day, focusedDay) {
+                        setState(() {
+                          _selectedDay = day;
+                          _focusedDay = focusedDay;
+                          _atualizarEventosDoDia();
+                        });
+                        _criarEventoNoDia(day);
+                      },
+                      onPageChanged: (focusedDay) {
+                        _focusedDay = focusedDay;
+                      },
+                      rowHeight: 54,
+                    ),
                   ),
-                  rightChevronIcon: Icon(
-                    Icons.chevron_right,
-                    color: theme.colorScheme.primary,
-                  ),
-                  titleTextFormatter: (date, locale) =>
-                      _capitalizar(DateFormat('MMMM y', 'pt_BR').format(date)),
-                ),
-                daysOfWeekStyle: DaysOfWeekStyle(
-                  weekdayStyle: theme.textTheme.labelSmall!.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  weekendStyle: theme.textTheme.labelSmall!.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                eventLoader: (day) {
-                  final dia = DateTime(day.year, day.month, day.day);
-                  return _eventosPorDia[dia] ?? [];
-                },
-                calendarStyle: CalendarStyle(
-                  outsideDaysVisible: false,
-                  cellMargin: const EdgeInsets.all(4),
-                  defaultTextStyle: theme.textTheme.bodyMedium!,
-                  weekendTextStyle: theme.textTheme.bodyMedium!,
-                  todayDecoration: BoxDecoration(
-                    color: theme.colorScheme.tertiaryContainer,
-                    shape: BoxShape.circle,
-                  ),
-                  todayTextStyle: theme.textTheme.bodyMedium!.copyWith(
-                    color: theme.colorScheme.onTertiaryContainer,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  selectedDecoration: BoxDecoration(
-                    color: theme.colorScheme.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  selectedTextStyle: theme.textTheme.bodyMedium!.copyWith(
-                    color: theme.colorScheme.onPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  markerDecoration: BoxDecoration(
-                    color: theme.colorScheme.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  markersMaxCount: 3,
-                  markerSize: 5,
-                  markersAlignment: Alignment.bottomCenter,
-                ),
-                onDaySelected: (selectedDay, focusedDay) {
-                  setState(() {
-                    _selectedDay = selectedDay;
-                    _focusedDay = focusedDay;
-                    _atualizarEventosDoDia();
-                  });
-                },
-                onDayLongPressed: (day, focusedDay) {
-                  setState(() {
-                    _selectedDay = day;
-                    _focusedDay = focusedDay;
-                    _atualizarEventosDoDia();
-                  });
-                  _criarEventoNoDia(day);
-                },
-                onPageChanged: (focusedDay) {
-                  _focusedDay = focusedDay;
-                },
-                rowHeight: 54,
+                ],
               ),
             ),
           ),
@@ -514,6 +533,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
     final inicio = evento.inicioEm;
     final hora = inicio == null ? '--:--' : _formatarHora(inicio);
     final temLocal = evento.local?.nome != null;
+    final paleta = paletaCategoria(theme.colorScheme, evento.local?.categoria);
 
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 2, 12, 10),
@@ -528,15 +548,16 @@ class TelaCalendarioState extends State<TelaCalendario> {
                 width: 58,
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
+                  color: paleta.fundo,
                   borderRadius: PlacezTokens.bordaMd,
+                  border: Border.all(color: paleta.borda),
                 ),
                 child: Column(
                   children: [
                     Text(
                       hora,
                       style: theme.textTheme.titleSmall?.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer,
+                        color: paleta.frente,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -546,9 +567,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
                           ? _formatarDataCurta(evento.fimEm!)
                           : 'início',
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer.withValues(
-                          alpha: 0.8,
-                        ),
+                        color: paleta.frente.withValues(alpha: 0.8),
                         fontWeight: FontWeight.w500,
                       ),
                     ),

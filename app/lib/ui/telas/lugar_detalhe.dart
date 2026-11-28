@@ -11,6 +11,7 @@ import '../../data/models/evento_resumo.dart';
 import '../../data/models/local.dart';
 import '../../data/models/lugar_detalhe.dart';
 import '../../tema.dart';
+import '../cores_categoria.dart';
 import '../widgets/avaliacao_estrelas.dart';
 import '../widgets/placez_componentes.dart';
 import 'login.dart';
@@ -303,6 +304,7 @@ class _TelaDetalheLugarState extends State<TelaDetalheLugar> {
     final lugar = _lugar;
     final detalhe = _detalhe;
     final fotos = FotosLugar.paraLugar(lugar.categoria, lugar.nome);
+    final paletaLugar = paletaCategoria(theme.colorScheme, lugar.categoria);
     final avaliacoes = detalhe?.avaliacoes ?? const <AvaliacaoLugar>[];
 
     return Scaffold(
@@ -325,10 +327,25 @@ class _TelaDetalheLugarState extends State<TelaDetalheLugar> {
             spacing: PlacezTokens.espSm,
             runSpacing: PlacezTokens.espSm,
             children: [
-              _chip(theme, Icons.category_outlined, lugar.categoria ?? 'Lugar'),
-              _chip(theme, Icons.location_city_outlined, lugar.cidade ?? ''),
+              _chip(
+                theme,
+                Icons.category_outlined,
+                lugar.categoria ?? 'Lugar',
+                paleta: paletaLugar,
+              ),
+              _chip(
+                theme,
+                Icons.location_city_outlined,
+                lugar.cidade ?? '',
+                paleta: theme.colorScheme.acentoTeal,
+              ),
               if (lugar.faixaPreco != null)
-                _chip(theme, Icons.payments_outlined, lugar.faixaPreco!),
+                _chip(
+                  theme,
+                  Icons.payments_outlined,
+                  lugar.faixaPreco!,
+                  paleta: theme.colorScheme.acentoAmbar,
+                ),
             ],
           ),
           const SizedBox(height: PlacezTokens.espMd),
@@ -344,6 +361,7 @@ class _TelaDetalheLugarState extends State<TelaDetalheLugar> {
               AvaliacaoEstrelas(
                 nota: lugar.avaliacaoMedia,
                 total: lugar.avaliacaoTotal,
+                cor: theme.colorScheme.acentoAmbar.frente,
               ),
               const Spacer(),
               if (lugar.distanciaMetros != null)
@@ -352,13 +370,13 @@ class _TelaDetalheLugarState extends State<TelaDetalheLugar> {
                     Icon(
                       Icons.near_me_outlined,
                       size: 16,
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: theme.colorScheme.acentoTeal.frente,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       formatarDistancia(lugar.distanciaMetros),
                       style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: theme.colorScheme.acentoTeal.frente,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -474,11 +492,12 @@ class _TelaDetalheLugarState extends State<TelaDetalheLugar> {
               child: Center(child: CircularProgressIndicator()),
             )
           else if (avaliacoes.isEmpty)
-            const EstadoVazio(
+            EstadoVazio(
               icone: Icons.rate_review_outlined,
               titulo: 'Ainda não há comentários',
               descricao: 'Seja a primeira pessoa a avaliar este lugar.',
-              padding: EdgeInsets.symmetric(vertical: PlacezTokens.espXl),
+              cor: theme.colorScheme.acentoRosa.frente,
+              padding: const EdgeInsets.symmetric(vertical: PlacezTokens.espXl),
             )
           else
             Card(
@@ -559,23 +578,30 @@ class _TelaDetalheLugarState extends State<TelaDetalheLugar> {
     );
   }
 
-  Widget _chip(ThemeData theme, IconData icone, String texto) {
+  Widget _chip(
+    ThemeData theme,
+    IconData icone,
+    String texto, {
+    PaletaStatus? paleta,
+  }) {
     if (texto.trim().isEmpty) return const SizedBox.shrink();
+    final frente = paleta?.frente ?? theme.colorScheme.onSurfaceVariant;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
+        color: paleta?.fundo ?? theme.colorScheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(999),
+        border: paleta == null ? null : Border.all(color: paleta.borda),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icone, size: 14, color: theme.colorScheme.onSurfaceVariant),
+          Icon(icone, size: 14, color: frente),
           const SizedBox(width: 4),
           Text(
             texto,
             style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+              color: frente,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -633,6 +659,7 @@ class _TelaDetalheLugarState extends State<TelaDetalheLugar> {
                   nota: avaliacao.nota.toDouble(),
                   tamanho: 13,
                   mostrarValor: false,
+                  cor: theme.colorScheme.acentoAmbar.frente,
                 ),
                 if (avaliacao.comentario != null) ...[
                   const SizedBox(height: 4),

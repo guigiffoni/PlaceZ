@@ -66,6 +66,7 @@ class EstadoVazio extends StatelessWidget {
   final String? descricao;
   final Widget? acao;
   final EdgeInsetsGeometry padding;
+  final Color? cor;
 
   const EstadoVazio({
     super.key,
@@ -73,6 +74,7 @@ class EstadoVazio extends StatelessWidget {
     required this.titulo,
     this.descricao,
     this.acao,
+    this.cor,
     this.padding = const EdgeInsets.symmetric(
       horizontal: PlacezTokens.espXl,
       vertical: PlacezTokens.espXl,
@@ -82,6 +84,7 @@ class EstadoVazio extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final corIcone = cor ?? theme.colorScheme.onSurfaceVariant;
 
     return Padding(
       padding: padding,
@@ -92,14 +95,10 @@ class EstadoVazio extends StatelessWidget {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHigh,
+              color: corIcone.withValues(alpha: 0.13),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icone,
-              size: 30,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            child: Icon(icone, size: 30, color: corIcone),
           ),
           const SizedBox(height: PlacezTokens.espMd),
           Text(

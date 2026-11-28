@@ -6,6 +6,7 @@ import '../core/locations/fotos_lugar.dart';
 import '../core/locations/locations_repository.dart';
 import '../data/models/local.dart';
 import '../tema.dart';
+import 'cores_categoria.dart';
 import 'telas/localizacao_aproximada.dart';
 import 'telas/lugar_detalhe.dart';
 import 'widgets/avaliacao_estrelas.dart';
@@ -247,6 +248,7 @@ class LugarPesquisa extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final foto = FotosLugar.principal(lugar.categoria, lugar.nome);
+    final paleta = paletaCategoria(theme.colorScheme, lugar.categoria);
 
     return Card(
       elevation: 0,
@@ -291,14 +293,43 @@ class LugarPesquisa extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      [
-                        if (lugar.categoria != null) lugar.categoria!,
-                        if (lugar.cidade != null) lugar.cidade!,
-                      ].join(' · '),
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                    Row(
+                      children: [
+                        if (lugar.categoria != null) ...[
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: paleta.frente,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              lugar.categoria!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: paleta.frente,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (lugar.cidade != null)
+                          Flexible(
+                            child: Text(
+                              '${lugar.categoria == null ? '' : ' · '}'
+                              '${lugar.cidade!}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 6),
                     Row(
@@ -309,19 +340,20 @@ class LugarPesquisa extends StatelessWidget {
                             nota: lugar.avaliacaoMedia,
                             tamanho: 13,
                             mostrarValor: true,
+                            cor: theme.colorScheme.acentoAmbar.frente,
                           ),
                         const Spacer(),
                         if (lugar.distanciaMetros != null) ...[
                           Icon(
                             Icons.near_me_outlined,
                             size: 13,
-                            color: theme.colorScheme.onSurfaceVariant,
+                            color: theme.colorScheme.acentoTeal.frente,
                           ),
                           const SizedBox(width: 3),
                           Text(
                             formatarDistancia(lugar.distanciaMetros),
                             style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                              color: theme.colorScheme.acentoTeal.frente,
                               fontWeight: FontWeight.w600,
                             ),
                           ),

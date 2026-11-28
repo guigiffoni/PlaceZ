@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../widgets/diagnostico_api.dart';
+import 'politica_privacidade.dart';
+import 'termos_uso.dart';
 
 class TelaLogin extends StatefulWidget {
   final AuthController authController;
@@ -361,6 +363,10 @@ class _TelaLoginState extends State<TelaLogin> {
                                   : 'Entrar',
                             ),
                           ),
+                          if (_criandoConta) ...[
+                            const SizedBox(height: 14),
+                            const _AceiteTermos(),
+                          ],
                         ],
                       ),
                     ),
@@ -430,6 +436,57 @@ class _Aviso extends StatelessWidget {
             visualDensity: VisualDensity.compact,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AceiteTermos extends StatelessWidget {
+  const _AceiteTermos();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final link = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.primary,
+      fontWeight: FontWeight.w600,
+      decoration: TextDecoration.underline,
+    );
+
+    Widget linkWidget(String texto, Widget pagina) {
+      return GestureDetector(
+        onTap: () =>
+            Navigator.of(context)
+                .push(MaterialPageRoute(builder: (context) => pagina)),
+        child: Text(texto, style: link),
+      );
+    }
+
+    return Text.rich(
+      TextSpan(
+        children: [
+          const TextSpan(text: 'Ao criar sua conta, você concorda com os '),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: linkWidget('Termos de Uso', const TelaTermosUso()),
+          ),
+          const TextSpan(text: ' e a '),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: linkWidget(
+              'Política de Privacidade',
+              const TelaPoliticaPrivacidade(),
+            ),
+          ),
+          const TextSpan(text: '.'),
+        ],
+      ),
+      textAlign: TextAlign.center,
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+        height: 1.45,
       ),
     );
   }

@@ -250,6 +250,7 @@ class _CombinacaoTabState extends State<CombinacaoTab> {
           icone: Icons.event_note_outlined,
           titulo: 'Combinação de dias',
           descricao: mensagem,
+          cor: Theme.of(context).colorScheme.acentoRoxo.frente,
         ),
       ],
     );

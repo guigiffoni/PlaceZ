@@ -599,7 +599,7 @@ class _TelaAmigosState extends State<TelaAmigos> {
             icon: Icon(
               amigo.favorito ? Icons.star : Icons.star_border,
               color: amigo.favorito
-                  ? theme.colorScheme.tertiary
+                  ? theme.colorScheme.acentoAmbar.frente
                   : theme.colorScheme.onSurfaceVariant,
             ),
           ),
@@ -676,7 +676,7 @@ class _Visitante extends StatelessWidget {
               Icon(
                 Icons.group_outlined,
                 size: 64,
-                color: theme.colorScheme.primary,
+                color: theme.colorScheme.acentoAzul.frente,
               ),
               const SizedBox(height: 16),
               Text(
@@ -728,7 +728,7 @@ class _EstadoVazio extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
       child: Column(
         children: [
-          Icon(icone, size: 48, color: theme.colorScheme.outline),
+          Icon(icone, size: 48, color: theme.colorScheme.acentoRoxo.frente),
           const SizedBox(height: 12),
           Text(
             titulo,
