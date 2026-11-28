@@ -61,12 +61,9 @@ class TelaCalendarioState extends State<TelaCalendario> {
           ? dia
           : DateTime(fim.year, fim.month, fim.day);
 
-      var restantes = 60;
-
-      while (!dia.isAfter(ultimoDia) && restantes > 0) {
+      while (!dia.isAfter(ultimoDia)) {
         agrupados.putIfAbsent(dia, () => []).add(evento);
-        dia = dia.add(const Duration(days: 1));
-        restantes--;
+        dia = DateTime(dia.year, dia.month, dia.day + 1);
       }
     }
 
@@ -241,6 +238,191 @@ class TelaCalendarioState extends State<TelaCalendario> {
     }
   }
 
+  DateTime _normalizarDia(DateTime data) {
+    return DateTime(data.year, data.month, data.day);
+  }
+
+  Map<Evento, int> _calcularLinhasEventos() {
+    final eventos = _eventosPorDia.values
+        .expand((lista) => lista)
+        .toSet()
+        .where(_eventoMultiDia)
+        .toList();
+
+    eventos.sort((a, b) {
+      final inicio = a.inicioEm!.compareTo(b.inicioEm!);
+      if (inicio != 0) return inicio;
+      return a.titulo.compareTo(b.titulo);
+    });
+
+    final linhas = <Evento, int>{};
+    final ocupacao = <DateTime>[];
+
+    for (final evento in eventos) {
+      final inicio = _normalizarDia(evento.inicioEm!.toLocal());
+      final fim = _normalizarDia(evento.fimEm!.toLocal());
+
+      var linha = 0;
+
+      while (linha < ocupacao.length && !ocupacao[linha].isBefore(inicio)) {
+        linha++;
+      }
+
+      if (linha == ocupacao.length) {
+        ocupacao.add(fim);
+      } else {
+        ocupacao[linha] = fim;
+      }
+
+      linhas[evento] = linha;
+    }
+
+    return linhas;
+  }
+
+  Widget _marcadoresCalendario(
+    BuildContext context,
+    DateTime dia,
+    List<Evento> eventos,
+    Map<Evento, int> linhas,
+  ) {
+    final theme = Theme.of(context);
+    final data = _normalizarDia(dia);
+    final eventosUnicos = eventos
+        .where((evento) => !_eventoMultiDia(evento))
+        .toList();
+
+    final barras = eventos.where(_eventoMultiDia).toList();
+
+    const maxLinhas = 3;
+
+    final ocultos = barras.where((evento) {
+      return (linhas[evento] ?? 0) >= maxLinhas;
+    }).length;
+
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 1,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var linha = 0; linha < maxLinhas; linha++)
+            SizedBox(
+              height: 6,
+              child: Stack(
+                children: [
+                  for (final evento in barras)
+                    if (linhas[evento] == linha)
+                      Positioned.fill(
+                        top: 1,
+                        bottom: 1,
+                        child: _barraEvento(evento, data, theme),
+                      ),
+                ],
+              ),
+            ),
+          if (eventosUnicos.isNotEmpty || ocultos > 0)
+            SizedBox(
+              height: 12,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (final evento in eventosUnicos.take(3))
+                    Container(
+                      width: 5,
+                      height: 5,
+                      margin: const EdgeInsets.symmetric(horizontal: 1),
+                      decoration: BoxDecoration(
+                        color: paletaCategoria(
+                          theme.colorScheme,
+                          evento.local?.categoria,
+                        ).frente,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  if (ocultos > 0 || eventosUnicos.length > 3)
+                    Text(
+                      '+${ocultos + (eventosUnicos.length > 3 ? eventosUnicos.length - 3 : 0)}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Color _corEventoCalendario(Evento evento) {
+    const cores = <Color>[
+      Color(0xFF67508B),
+      Color(0xFF1976D2),
+      Color(0xFFE67E22),
+      Color(0xFF00897B),
+      Color(0xFFD81B60),
+      Color(0xFF689F38),
+      Color(0xFF795548),
+      Color(0xFF3949AB),
+    ];
+
+    final linhas = _calcularLinhasEventos();
+    final linha = linhas[evento];
+
+    if (linha != null) {
+      return cores[linha % cores.length];
+    }
+
+    final identificador = evento.id?.toString() ?? evento.titulo;
+
+    var indice = 0;
+
+    for (final caractere in identificador.codeUnits) {
+      indice = (indice * 31 + caractere) % cores.length;
+    }
+
+    return cores[indice];
+  }
+
+  Widget _barraEvento(Evento evento, DateTime dia, ThemeData theme) {
+    final inicio = _normalizarDia(evento.inicioEm!.toLocal());
+    final fim = _normalizarDia(evento.fimEm!.toLocal());
+
+    final primeiroDia = isSameDay(dia, inicio);
+    final ultimoDia = isSameDay(dia, fim);
+
+    final inicioSemana = dia.weekday == DateTime.sunday;
+    final fimSemana = dia.weekday == DateTime.saturday;
+
+    final inicioMes = dia.day == 1;
+    final fimMes =
+        DateTime(dia.year, dia.month, dia.day + 1).month != dia.month;
+
+    final arredondarInicio = primeiroDia || inicioSemana || inicioMes;
+
+    final arredondarFim = ultimoDia || fimSemana || fimMes;
+
+    return Tooltip(
+      message: evento.titulo,
+      child: Container(
+        margin: EdgeInsets.only(
+          left: arredondarInicio ? 2 : 0,
+          right: arredondarFim ? 2 : 0,
+        ),
+        decoration: BoxDecoration(
+          color: _corEventoCalendario(evento),
+          borderRadius: BorderRadius.horizontal(
+            left: Radius.circular(arredondarInicio ? 4 : 0),
+            right: Radius.circular(arredondarFim ? 4 : 0),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _rascunhos(ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -342,6 +524,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final linhasEventos = _calcularLinhasEventos();
 
     return Column(
       children: [
@@ -459,9 +642,23 @@ class TelaCalendarioState extends State<TelaCalendario> {
                         return _eventosPorDia[dia] ?? [];
                       },
 
+                      calendarBuilders: CalendarBuilders<Evento>(
+                        markerBuilder: (context, day, eventos) {
+                          if (eventos.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+
+                          return _marcadoresCalendario(
+                            context,
+                            day,
+                            eventos,
+                            linhasEventos,
+                          );
+                        },
+                      ),
                       calendarStyle: CalendarStyle(
                         outsideDaysVisible: false,
-                        cellMargin: const EdgeInsets.all(4),
+                        cellMargin: const EdgeInsets.fromLTRB(4, 2, 4, 24),
                         defaultTextStyle: theme.textTheme.bodyMedium!,
                         weekendTextStyle: theme.textTheme.bodyMedium!,
 
@@ -511,7 +708,7 @@ class TelaCalendarioState extends State<TelaCalendario> {
                         _focusedDay = focusedDay;
                       },
 
-                      rowHeight: 54,
+                      rowHeight: 72,
                     ),
                   ),
                 ],
