@@ -304,225 +304,257 @@ class TelaCalendarioState extends State<TelaCalendario> {
     return Column(
       children: [
         if (_controller.carregando) const LinearProgressIndicator(),
-        if (_controller.erro != null) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: AvisoPlacez(
-              _controller.erro!,
-              erro: true,
-              onFechar: _controller.limparErro,
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: _controller.carregando
-                  ? null
-                  : _controller.atualizarCalendario,
-              child: const Text('Tentar novamente'),
-            ),
-          ),
-        ],
-        if (_controller.mostrandoCache)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: AvisoPlacez(
-              'Sem conexão com a API. Mostrando eventos salvos no aparelho.',
-            ),
-          ),
-        if (!_controller.auth.autenticado)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: AvisoPlacez('Entre para ver os eventos dos seus amigos.'),
-          ),
-        if (_controller.auth.autenticado && _controller.rascunhos.isNotEmpty)
-          _rascunhos(theme),
-        if (_controller.auth.autenticado && _controller.ranking.isNotEmpty)
-          _filtroPessoas(theme),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerLow,
-              borderRadius: PlacezTokens.bordaLg,
-              border: Border.all(color: theme.colorScheme.bordaSutil),
-            ),
-            child: ClipRRect(
-              borderRadius: PlacezTokens.bordaLg,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    height: 4,
-                    decoration: BoxDecoration(
-                      gradient: theme.colorScheme.gradienteMarca,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(6, 4, 6, 10),
-                    child: TableCalendar<Evento>(
-                      firstDay: DateTime.utc(2020, 1, 1),
-                      lastDay: DateTime.utc(2030, 12, 31),
-                      focusedDay: _focusedDay,
-                      locale: 'pt_BR',
-                      calendarFormat: CalendarFormat.month,
-                      availableCalendarFormats: const {
-                        CalendarFormat.month: 'Mês',
-                      },
-                      headerStyle: HeaderStyle(
-                        formatButtonVisible: false,
-                        titleCentered: true,
-                        headerPadding: const EdgeInsets.symmetric(vertical: 8),
-                        titleTextStyle: theme.textTheme.titleMedium!.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                        leftChevronIcon: Icon(
-                          Icons.chevron_left,
-                          color: theme.colorScheme.primary,
-                        ),
-                        rightChevronIcon: Icon(
-                          Icons.chevron_right,
-                          color: theme.colorScheme.primary,
-                        ),
-                        titleTextFormatter: (date, locale) => _capitalizar(
-                          DateFormat('MMMM y', 'pt_BR').format(date),
-                        ),
-                      ),
-                      daysOfWeekStyle: DaysOfWeekStyle(
-                        weekdayStyle: theme.textTheme.labelSmall!.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        weekendStyle: theme.textTheme.labelSmall!.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      selectedDayPredicate: (day) =>
-                          isSameDay(_selectedDay, day),
-                      eventLoader: (day) {
-                        final dia = DateTime(day.year, day.month, day.day);
-                        return _eventosPorDia[dia] ?? [];
-                      },
-                      calendarStyle: CalendarStyle(
-                        outsideDaysVisible: false,
-                        cellMargin: const EdgeInsets.all(4),
-                        defaultTextStyle: theme.textTheme.bodyMedium!,
-                        weekendTextStyle: theme.textTheme.bodyMedium!,
-                        todayDecoration: BoxDecoration(
-                          color: theme.colorScheme.tertiaryContainer,
-                          shape: BoxShape.circle,
-                        ),
-                        todayTextStyle: theme.textTheme.bodyMedium!.copyWith(
-                          color: theme.colorScheme.onTertiaryContainer,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        selectedDecoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        selectedTextStyle: theme.textTheme.bodyMedium!.copyWith(
-                          color: theme.colorScheme.onPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        markerDecoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        markersMaxCount: 3,
-                        markerSize: 5,
-                        markersAlignment: Alignment.bottomCenter,
-                      ),
-                      onDaySelected: (selectedDay, focusedDay) {
-                        setState(() {
-                          _selectedDay = selectedDay;
-                          _focusedDay = focusedDay;
-                          _atualizarEventosDoDia();
-                        });
-                      },
-                      onDayLongPressed: (day, focusedDay) {
-                        setState(() {
-                          _selectedDay = day;
-                          _focusedDay = focusedDay;
-                          _atualizarEventosDoDia();
-                        });
-                        _criarEventoNoDia(day);
-                      },
-                      onPageChanged: (focusedDay) {
-                        _focusedDay = focusedDay;
-                      },
-                      rowHeight: 54,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _formatarDiaLongo(_selectedDay),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              if (_eventosDoDia.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '${_eventosDoDia.length}',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
         Expanded(
           child: RefreshIndicator(
             onRefresh: () => _controller.carregar(),
-            child: _eventosDoDia.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(bottom: 24),
-                    children: [
-                      const SizedBox(height: PlacezTokens.espMd),
-                      _BotaoCriarEvento(
-                        onTap: () => _criarEventoNoDia(_selectedDay),
-                      ),
-                      const SizedBox(height: PlacezTokens.espMd),
-                      Center(
-                        child: Text(
-                          'Nenhum evento neste dia',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                if (_controller.erro != null)
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                          child: AvisoPlacez(
+                            _controller.erro!,
+                            erro: true,
+                            onFechar: _controller.limparErro,
                           ),
                         ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _controller.carregando
+                                ? null
+                                : _controller.atualizarCalendario,
+                            child: const Text('Tentar novamente'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (_controller.mostrandoCache)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      child: AvisoPlacez(
+                        'Sem conexão com a API. Mostrando eventos salvos no aparelho.',
                       ),
-                    ],
+                    ),
+                  ),
+                if (!_controller.auth.autenticado)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      child: AvisoPlacez(
+                        'Entre para ver os eventos dos seus amigos.',
+                      ),
+                    ),
+                  ),
+                if (_controller.auth.autenticado &&
+                    _controller.rascunhos.isNotEmpty)
+                  SliverToBoxAdapter(child: _rascunhos(theme)),
+                if (_controller.auth.autenticado &&
+                    _controller.ranking.isNotEmpty)
+                  SliverToBoxAdapter(child: _filtroPessoas(theme)),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerLow,
+                        borderRadius: PlacezTokens.bordaLg,
+                        border: Border.all(color: theme.colorScheme.bordaSutil),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: PlacezTokens.bordaLg,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              height: 4,
+                              decoration: BoxDecoration(
+                                gradient: theme.colorScheme.gradienteMarca,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(6, 4, 6, 10),
+                              child: TableCalendar<Evento>(
+                                firstDay: DateTime.utc(2020, 1, 1),
+                                lastDay: DateTime.utc(2030, 12, 31),
+                                focusedDay: _focusedDay,
+                                locale: 'pt_BR',
+                                calendarFormat: CalendarFormat.month,
+                                // Só há o formato mês, então o gesto vertical do
+                                // calendário não faz nada; liberá-lo permite
+                                // rolar a página começando sobre o calendário.
+                                availableGestures:
+                                    AvailableGestures.horizontalSwipe,
+                                availableCalendarFormats: const {
+                                  CalendarFormat.month: 'Mês',
+                                },
+                                headerStyle: HeaderStyle(
+                                  formatButtonVisible: false,
+                                  titleCentered: true,
+                                  headerPadding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  titleTextStyle: theme.textTheme.titleMedium!
+                                      .copyWith(fontWeight: FontWeight.w800),
+                                  leftChevronIcon: Icon(
+                                    Icons.chevron_left,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                  rightChevronIcon: Icon(
+                                    Icons.chevron_right,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                  titleTextFormatter: (date, locale) =>
+                                      _capitalizar(
+                                        DateFormat(
+                                          'MMMM y',
+                                          'pt_BR',
+                                        ).format(date),
+                                      ),
+                                ),
+                                daysOfWeekStyle: DaysOfWeekStyle(
+                                  weekdayStyle: theme.textTheme.labelSmall!
+                                      .copyWith(
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                  weekendStyle: theme.textTheme.labelSmall!
+                                      .copyWith(
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
+                                selectedDayPredicate: (day) =>
+                                    isSameDay(_selectedDay, day),
+                                eventLoader: (day) {
+                                  final dia = DateTime(
+                                    day.year,
+                                    day.month,
+                                    day.day,
+                                  );
+                                  return _eventosPorDia[dia] ?? [];
+                                },
+                                calendarStyle: CalendarStyle(
+                                  outsideDaysVisible: false,
+                                  cellMargin: const EdgeInsets.all(4),
+                                  defaultTextStyle: theme.textTheme.bodyMedium!,
+                                  weekendTextStyle: theme.textTheme.bodyMedium!,
+                                  todayDecoration: BoxDecoration(
+                                    color: theme.colorScheme.tertiaryContainer,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  todayTextStyle: theme.textTheme.bodyMedium!
+                                      .copyWith(
+                                        color: theme
+                                            .colorScheme
+                                            .onTertiaryContainer,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                  selectedDecoration: BoxDecoration(
+                                    color: theme.colorScheme.primary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  selectedTextStyle: theme.textTheme.bodyMedium!
+                                      .copyWith(
+                                        color: theme.colorScheme.onPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                  markerDecoration: BoxDecoration(
+                                    color: theme.colorScheme.primary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  markersMaxCount: 3,
+                                  markerSize: 5,
+                                  markersAlignment: Alignment.bottomCenter,
+                                ),
+                                onDaySelected: (selectedDay, focusedDay) {
+                                  setState(() {
+                                    _selectedDay = selectedDay;
+                                    _focusedDay = focusedDay;
+                                    _atualizarEventosDoDia();
+                                  });
+                                },
+                                onDayLongPressed: (day, focusedDay) {
+                                  setState(() {
+                                    _selectedDay = day;
+                                    _focusedDay = focusedDay;
+                                    _atualizarEventosDoDia();
+                                  });
+                                  _criarEventoNoDia(day);
+                                },
+                                onPageChanged: (focusedDay) {
+                                  _focusedDay = focusedDay;
+                                },
+                                rowHeight: 54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _CabecalhoDia(
+                    titulo: _formatarDiaLongo(_selectedDay),
+                    quantidade: _eventosDoDia.length,
+                    theme: theme,
+                    extent:
+                        20 +
+                        MediaQuery.textScalerOf(context)
+                            .scale(theme.textTheme.titleSmall?.fontSize ?? 14) +
+                        8,
+                  ),
+                ),
+                if (_eventosDoDia.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: PlacezTokens.espMd),
+                          _BotaoCriarEvento(
+                            onTap: () => _criarEventoNoDia(_selectedDay),
+                          ),
+                          const SizedBox(height: PlacezTokens.espMd),
+                          Center(
+                            child: Text(
+                              'Nenhum evento neste dia',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   )
-                : ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(bottom: 16),
+                else
+                  SliverList.builder(
                     itemCount: _eventosDoDia.length,
                     itemBuilder: (context, index) {
                       return _eventoTile(_eventosDoDia[index], theme);
                     },
                   ),
+                if (_eventosDoDia.isNotEmpty)
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: PlacezTokens.espMd),
+                  ),
+              ],
+            ),
           ),
         ),
       ],
@@ -655,6 +687,94 @@ class TelaCalendarioState extends State<TelaCalendario> {
         ),
       ),
     );
+  }
+}
+
+/// Cabeçalho do dia selecionado que permanece visível no topo enquanto a
+/// lista de eventos rola.
+class _CabecalhoDia extends SliverPersistentHeaderDelegate {
+  final String titulo;
+  final int quantidade;
+  final ThemeData theme;
+  final double extent;
+
+  const _CabecalhoDia({
+    required this.titulo,
+    required this.quantidade,
+    required this.theme,
+    required this.extent,
+  });
+
+  @override
+  double get minExtent => extent;
+
+  @override
+  double get maxExtent => extent;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return SizedBox(
+      height: extent,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          border: Border(
+            bottom: BorderSide(
+              color: overlapsContent
+                  ? theme.colorScheme.bordaSutil
+                  : Colors.transparent,
+            ),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  titulo,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (quantidade > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$quantidade',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _CabecalhoDia oldDelegate) {
+    return oldDelegate.titulo != titulo ||
+        oldDelegate.quantidade != quantidade ||
+        oldDelegate.theme != theme ||
+        oldDelegate.extent != extent;
   }
 }
 
